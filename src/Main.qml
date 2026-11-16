@@ -6,42 +6,27 @@ import QtQuick.Layouts
 ApplicationWindow {
     id: win
     objectName: "mainWindow"
-    width: 940
-    height: 730
-    minimumWidth: 800
-    minimumHeight: 680
+    width: 920; height: 650
+    minimumWidth: 780; minimumHeight: 570
     visible: true
     title: "Cursora"
-    color: "#101114"
+    color: theme.background
+    font.family: "monospace"
+    font.pixelSize: 13
     Material.theme: Material.Dark
     Material.accent: theme.accent
-    Material.primary: "#191b20"
-    Material.foreground: "#eceef3"
+    Material.foreground: theme.foreground
     Material.roundedScale: theme.radius
     property bool busy: false
     property bool quitting: false
+    readonly property color textColor: theme.foreground
+    readonly property color lineColor: Qt.rgba(win.textColor.r, win.textColor.g, win.textColor.b, 0.22)
+    readonly property color quietColor: Qt.rgba(win.textColor.r, win.textColor.g, win.textColor.b, 0.58)
 
-    component ActionButton: Button {
-        id: control
-        implicitHeight: 44
-        leftPadding: 18
-        rightPadding: 18
-        Material.roundedScale: theme.radius
-        background: Rectangle {
-            radius: theme.radius
-            color: control.highlighted && control.enabled ? theme.accent : control.down ? "#30343e" : "#20232a"
-            opacity: control.enabled ? 1 : 0.45
-        }
-        contentItem: Label {
-            text: control.text
-            horizontalAlignment: Text.AlignHCenter
-            verticalAlignment: Text.AlignVCenter
-            color: !control.enabled ? "#777e8c" : control.highlighted ? theme.accentForeground : "#eceef3"
-        }
-    }
-
+    function titleFor(id) { return (translator.language, backend.themeTitle(id)); }
+    function descriptionFor(id) { return (translator.language, backend.themeDescription(id)); }
     function applySelection() {
-        if (busy) return;
+        if (busy || themeList.count === 0) return;
         busy = true;
         Qt.callLater(function() { backend.apply(); busy = false; });
     }
@@ -49,9 +34,20 @@ ApplicationWindow {
         if (backend.dirty) quitDialog.open();
         else { quitting = true; close(); }
     }
+    function syncSelection() {
+        for (let i = 0; i < backend.themes.length; i++) {
+            if (backend.themes[i].id === backend.selected) {
+                themeList.currentIndex = i;
+                themeList.positionViewAtIndex(i, ListView.Contain);
+                return;
+            }
+        }
+    }
     onClosing: function(event) {
         if (!quitting && backend.dirty) { event.accepted = false; quitDialog.open(); }
     }
+    Component.onCompleted: syncSelection()
+    Connections { target: backend; function onChanged() { win.syncSelection(); } }
     Shortcut { sequence: "?"; context: Qt.ApplicationShortcut; onActivated: helpDialog.open() }
     Shortcut { sequence: "Q"; context: Qt.ApplicationShortcut; onActivated: win.requestQuit() }
     Shortcut { sequence: "Space"; context: Qt.ApplicationShortcut; onActivated: win.applySelection() }
@@ -59,32 +55,66 @@ ApplicationWindow {
     Shortcut { sequence: "Ctrl+R"; context: Qt.ApplicationShortcut; onActivated: backend.rescan() }
     Shortcut { sequence: "Escape"; context: Qt.ApplicationShortcut; onActivated: backend.discard() }
 
+    component TextButton: Button {
+        id: control
+        implicitHeight: 34
+        leftPadding: 12; rightPadding: 12
+        hoverEnabled: true
+        Material.roundedScale: theme.radius
+        background: Rectangle {
+            radius: theme.radius
+            color: control.highlighted && control.enabled ? theme.foreground
+                : control.down || control.hovered || control.activeFocus ? theme.selection : "transparent"
+            border.width: 1
+            border.color: control.enabled ? win.lineColor : Qt.rgba(win.textColor.r, win.textColor.g, win.textColor.b, 0.1)
+        }
+        contentItem: Label {
+            text: control.text
+            font: control.font
+            color: !control.enabled ? Qt.rgba(win.textColor.r, win.textColor.g, win.textColor.b, 0.3)
+                : control.highlighted ? theme.background : theme.foreground
+            horizontalAlignment: Text.AlignHCenter
+            verticalAlignment: Text.AlignVCenter
+        }
+    }
+    component Sheet: Dialog {
+        id: sheet
+        anchors.centerIn: parent
+        width: Math.min(540, win.width - 64)
+        modal: true
+        padding: 22
+        Material.roundedScale: theme.radius
+        background: Rectangle { color: theme.background; border.color: theme.foreground; border.width: 1; radius: theme.radius }
+        header: Label {
+            text: sheet.title
+            color: theme.foreground
+            font.bold: true; font.pixelSize: 15
+            padding: 22; bottomPadding: 16
+            wrapMode: Text.WordWrap
+        }
+    }
+
     Item {
         anchors.fill: parent
         LayoutMirroring.enabled: Qt.application.layoutDirection === Qt.RightToLeft
         LayoutMirroring.childrenInherit: true
         ColumnLayout {
-            anchors.fill: parent
-            anchors.margins: 26
-            spacing: 20
+            anchors.fill: parent; anchors.margins: 24
+            spacing: 18
             RowLayout {
-                spacing: 14
-                Rectangle {
-                    width: 42; height: 42; radius: Math.min(4, theme.radius); color: theme.accent
-                    Image { anchors.centerIn: parent; width: 28; height: 28; source: "qrc:/mark.svg" }
-                }
-                ColumnLayout {
-                    spacing: 2
-                    Label { text: "Cursora"; font.pixelSize: 25; font.bold: true }
-                    Label { text: qsTr("Your cursor. Your style."); color: "#959ba9"; font.pixelSize: 13 }
-                }
+                Layout.fillWidth: true; spacing: 12
+                Label { text: ">"; color: theme.accent; font.pixelSize: 21; font.bold: true }
+                Label { text: "cursora"; color: theme.foreground; font.pixelSize: 20; font.bold: true }
+                Label { text: "/ " + qsTr("cursor packs"); color: win.quietColor; font.pixelSize: 12 }
                 Item { Layout.fillWidth: true }
-                ToolButton {
+                TextButton {
                     objectName: "languageButton"
                     text: translator.language.toUpperCase()
                     onClicked: languageMenu.open()
                     Menu {
                         id: languageMenu
+                        Material.roundedScale: theme.radius
+                        background: Rectangle { color: theme.background; border.width: 1; border.color: win.lineColor; radius: theme.radius }
                         MenuItem { text: "Русский"; onTriggered: translator.setLanguage("ru") }
                         MenuItem { text: "English"; onTriggered: translator.setLanguage("en") }
                         MenuItem { text: "Dansk"; onTriggered: translator.setLanguage("da") }
@@ -92,186 +122,155 @@ ApplicationWindow {
                         MenuItem { text: qsTr("Follow Omarchy"); onTriggered: translator.setLanguage("") }
                     }
                 }
-                ToolButton { text: "?"; Accessible.name: qsTr("Keyboard shortcuts"); onClicked: helpDialog.open() }
+                TextButton { text: "?"; Accessible.name: qsTr("Keyboard shortcuts"); onClicked: helpDialog.open() }
             }
+            Rectangle { Layout.fillWidth: true; height: 1; color: win.lineColor }
             RowLayout {
-                Layout.fillWidth: true
-                Layout.fillHeight: true
+                Layout.fillWidth: true; Layout.fillHeight: true
                 spacing: 22
                 ColumnLayout {
-                    Layout.preferredWidth: 250
-                    Layout.maximumWidth: 280
-                    Layout.minimumWidth: 230
+                    Layout.preferredWidth: 266; Layout.minimumWidth: 240; Layout.maximumWidth: 280
                     Layout.fillHeight: true
-                    spacing: 10
+                    spacing: 12
                     RowLayout {
                         Layout.fillWidth: true
-                        Label { text: qsTr("THEMES"); font.pixelSize: 11; font.letterSpacing: 2; color: "#959ba9" }
+                        Label { text: qsTr("PACKS"); color: win.quietColor; font.pixelSize: 11; font.letterSpacing: 1.3 }
                         Item { Layout.fillWidth: true }
-                        ToolButton { text: "↻"; Accessible.name: qsTr("Refresh themes"); onClicked: backend.rescan() }
+                        TextButton { text: "↻"; implicitHeight: 28; Accessible.name: qsTr("Refresh themes"); onClicked: backend.rescan() }
                     }
                     ListView {
                         id: themeList
                         objectName: "themeList"
-                        Layout.fillWidth: true
-                        Layout.fillHeight: true
-                        clip: true
-                        spacing: 8
+                        Layout.fillWidth: true; Layout.fillHeight: true
                         model: backend.themes
-                        keyNavigationEnabled: true
+                        clip: true
+                        spacing: 2
                         ScrollBar.vertical: ScrollBar { policy: ScrollBar.AsNeeded }
                         Keys.onUpPressed: {
+                            if (!count) return;
                             currentIndex = Math.max(0, currentIndex - 1);
                             backend.selected = model[currentIndex].id;
-                            positionViewAtIndex(currentIndex, ListView.Contain);
                         }
                         Keys.onDownPressed: {
+                            if (!count) return;
                             currentIndex = Math.min(count - 1, currentIndex + 1);
                             backend.selected = model[currentIndex].id;
-                            positionViewAtIndex(currentIndex, ListView.Contain);
                         }
                         delegate: Item {
+                            id: row
                             required property var modelData
                             required property int index
-                            width: themeList.width
-                            height: 68
+                            width: themeList.width; height: 54
+                            readonly property bool chosen: backend.selected === modelData.id
                             Rectangle {
                                 anchors.fill: parent
-                                color: backend.selected === modelData.id ? "#252931" : "#191b20"
-                                border.width: backend.selected === modelData.id ? 1 : 0
-                                border.color: theme.accent
+                                color: row.chosen ? theme.selection : rowMouse.containsMouse ? Qt.rgba(win.textColor.r, win.textColor.g, win.textColor.b, 0.04) : "transparent"
                                 radius: theme.radius
-                                RowLayout {
-                                    anchors.fill: parent; anchors.margins: 12; spacing: 12
-                                    Image {
-                                        source: backend.preview(modelData.id, "left_ptr", 48)
-                                        Layout.preferredWidth: 38; Layout.preferredHeight: 38
-                                        fillMode: Image.PreserveAspectFit
-                                    }
-                                    ColumnLayout {
-                                        Layout.fillWidth: true; spacing: 4
-                                        Label { text: modelData.name; Layout.fillWidth: true; elide: Text.ElideRight; font.pixelSize: 14; font.bold: backend.selected === modelData.id }
-                                        Label { text: backend.active === modelData.id ? qsTr("Active") : modelData.builtin ? qsTr("Color collection") : qsTr("Installed theme"); color: backend.active === modelData.id ? theme.accent : "#959ba9"; font.pixelSize: 11 }
-                                    }
+                                border.width: row.chosen ? 1 : 0
+                                border.color: theme.accent
+                            }
+                            RowLayout {
+                                anchors.fill: parent; anchors.margins: 10; spacing: 11
+                                Image {
+                                    Layout.preferredWidth: 32; Layout.preferredHeight: 32
+                                    source: backend.preview(row.modelData.id, "left_ptr", 48)
+                                    fillMode: Image.PreserveAspectFit
                                 }
+                                Label {
+                                    text: win.titleFor(row.modelData.id)
+                                    Layout.fillWidth: true
+                                    elide: Text.ElideRight
+                                    font.pixelSize: 12
+                                    color: theme.foreground
+                                }
+                                Label { text: backend.active === row.modelData.id ? "●" : row.chosen ? "‹" : ""; color: theme.accent; font.pixelSize: 12 }
                             }
                             MouseArea {
-                                anchors.fill: parent
-                                onClicked: { backend.selected = modelData.id; themeList.currentIndex = index; themeList.forceActiveFocus(); }
+                                id: rowMouse
+                                anchors.fill: parent; hoverEnabled: true
+                                onClicked: { backend.selected = row.modelData.id; themeList.forceActiveFocus(); }
                                 Accessible.role: Accessible.Button
-                                Accessible.name: modelData.name
+                                Accessible.name: win.titleFor(row.modelData.id)
                             }
                         }
                         Label {
-                            anchors.centerIn: parent; width: parent.width - 20
+                            anchors.centerIn: parent; width: parent.width - 16
                             visible: themeList.count === 0
                             text: qsTr("No themes found. Add a theme and refresh the list.")
-                            wrapMode: Text.WordWrap; color: "#959ba9"
+                            wrapMode: Text.WordWrap; color: win.quietColor
                         }
                     }
-                    ActionButton { text: qsTr("Add a theme…"); Layout.fillWidth: true; onClicked: addDialog.open() }
+                    TextButton { text: "+ " + qsTr("Add a pack"); Layout.fillWidth: true; onClicked: addDialog.open() }
                 }
+                Rectangle { Layout.fillHeight: true; width: 1; color: win.lineColor }
                 ColumnLayout {
-                    Layout.fillWidth: true
-                    Layout.fillHeight: true
+                    Layout.fillWidth: true; Layout.fillHeight: true
                     spacing: 16
-                    RowLayout {
-                        Layout.fillWidth: true
-                        Label { text: qsTr("PREVIEW"); color: "#959ba9"; font.pixelSize: 11; font.letterSpacing: 2 }
-                        Item { Layout.fillWidth: true }
-                        Label { text: backend.selected.replace("Cursora-", ""); font.pixelSize: 14; color: theme.accent; elide: Text.ElideRight; Layout.maximumWidth: 240 }
+                    ColumnLayout {
+                        Layout.fillWidth: true; spacing: 7
+                        Label { text: win.titleFor(backend.selected); color: theme.foreground; font.pixelSize: 18; font.bold: true; Layout.fillWidth: true; elide: Text.ElideRight }
+                        Label { text: win.descriptionFor(backend.selected); color: win.quietColor; font.pixelSize: 11; Layout.fillWidth: true; wrapMode: Text.WordWrap }
                     }
                     RowLayout {
-                        Layout.fillWidth: true
-                        Layout.preferredHeight: 164
+                        Layout.fillWidth: true; Layout.fillHeight: true
+                        Layout.minimumHeight: 150; Layout.maximumHeight: 220
                         spacing: 10
                         Repeater {
-                            model: [{light: false, label: qsTr("Dark background")}, {light: true, label: qsTr("Light background")}]
+                            model: [{light: false, label: qsTr("DARK")}, {light: true, label: qsTr("LIGHT")}]
                             Rectangle {
                                 required property var modelData
-                                Layout.fillWidth: true
-                                Layout.fillHeight: true
-                                color: modelData.light ? "#edf0f5" : "#1b1e25"
+                                Layout.fillWidth: true; Layout.fillHeight: true
+                                color: modelData.light ? "#eeeeee" : "#151515"
+                                border.width: 1; border.color: win.lineColor
                                 radius: theme.radius
                                 Image {
                                     anchors.centerIn: parent
-                                    source: backend.preview(backend.selected, "left_ptr", 72)
-                                    width: 76; height: 76; fillMode: Image.PreserveAspectFit
+                                    width: 82; height: 82
+                                    source: backend.preview(backend.selected, "left_ptr", 80)
+                                    fillMode: Image.PreserveAspectFit
                                 }
-                                Label { anchors.bottom: parent.bottom; anchors.horizontalCenter: parent.horizontalCenter; anchors.bottomMargin: 13; text: modelData.label; color: modelData.light ? "#616875" : "#959ba9"; font.pixelSize: 11 }
+                                Label {
+                                    anchors.bottom: parent.bottom; anchors.left: parent.left
+                                    anchors.margins: 12
+                                    text: modelData.label; font.pixelSize: 10; font.letterSpacing: 1
+                                    color: modelData.light ? "#666666" : "#999999"
+                                }
                             }
                         }
                     }
+                    Label { text: qsTr("CURSOR SHAPES"); color: win.quietColor; font.pixelSize: 10; font.letterSpacing: 1.2 }
                     Rectangle {
-                        Layout.fillWidth: true
-                        Layout.preferredHeight: 92
-                        color: "#191b20"; radius: theme.radius
+                        Layout.fillWidth: true; Layout.preferredHeight: 94
+                        color: "transparent"; border.width: 1; border.color: win.lineColor; radius: theme.radius
                         RowLayout {
-                            anchors.fill: parent; anchors.margins: 14; spacing: 4
+                            anchors.fill: parent; anchors.margins: 12; spacing: 2
                             Repeater {
-                                model: ["left_ptr", "hand2", "xterm", "crosshair", "ew-resize", "watch"]
+                                model: [{shape:"left_ptr", label:qsTr("Arrow")}, {shape:"hand2", label:qsTr("Link")},
+                                    {shape:"xterm", label:qsTr("Text")}, {shape:"crosshair", label:qsTr("Cross")},
+                                    {shape:"ew-resize", label:qsTr("Resize")}, {shape:"watch", label:qsTr("Wait")}]
                                 ColumnLayout {
-                                    required property string modelData
-                                    Layout.fillWidth: true; spacing: 4
-                                    Image { Layout.alignment: Qt.AlignHCenter; Layout.preferredWidth: 36; Layout.preferredHeight: 36; source: backend.preview(backend.selected, modelData, 48); fillMode: Image.PreserveAspectFit }
+                                    required property var modelData
+                                    Layout.fillWidth: true; spacing: 9
+                                    Image { Layout.alignment: Qt.AlignHCenter; Layout.preferredWidth: 32; Layout.preferredHeight: 32; source: backend.preview(backend.selected, modelData.shape, 48); fillMode: Image.PreserveAspectFit }
+                                    Label { text: modelData.label; Layout.alignment: Qt.AlignHCenter; color: win.quietColor; font.pixelSize: 9 }
                                 }
                             }
                         }
                     }
-                    ColumnLayout {
-                        Layout.fillWidth: true
-                        spacing: 0
-                        RowLayout {
-                            Label { text: qsTr("Cursor size"); font.pixelSize: 15; Layout.fillWidth: true }
-                            SpinBox {
-                                objectName: "sizeBox"
-                                from: 16; to: 96; stepSize: 1; value: backend.cursorSize
-                                editable: true
-                                onValueModified: backend.cursorSize = value
-                                Accessible.name: qsTr("Cursor size")
-                            }
-                        }
-                        Slider {
-                            objectName: "sizeSlider"
-                            Layout.fillWidth: true
-                            from: 16; to: 96; stepSize: 1; value: backend.cursorSize
-                            onMoved: backend.cursorSize = Math.round(value)
-                            Accessible.name: qsTr("Cursor size")
-                        }
-                        RowLayout {
-                            Label { text: qsTr("Small"); color: "#959ba9"; font.pixelSize: 11 }
-                            Item { Layout.fillWidth: true }
-                            Label { text: qsTr("Large"); color: "#959ba9"; font.pixelSize: 11 }
-                        }
-                    }
-                    Rectangle {
-                        Layout.fillWidth: true
-                        Layout.fillHeight: true
-                        Layout.minimumHeight: 72
-                        color: "#191b20"; radius: theme.radius
-                        RowLayout {
-                            anchors.fill: parent; anchors.margins: 14; spacing: 16
-                            Image { source: backend.preview(backend.selected, "left_ptr", backend.cursorSize); Layout.preferredWidth: backend.cursorSize; Layout.preferredHeight: backend.cursorSize; fillMode: Image.PreserveAspectFit }
-                            Label { text: qsTr("Selected size · %1 px").arg((translator.language, backend.cursorSize.toLocaleString(Qt.locale(), 'f', 0))); wrapMode: Text.WordWrap; Layout.fillWidth: true; color: "#959ba9"; font.pixelSize: 12 }
-                        }
-                    }
+                    Item { Layout.fillHeight: true; Layout.maximumHeight: 8 }
                 }
             }
-            Rectangle { Layout.fillWidth: true; height: 1; color: "#2b2f38" }
+            Rectangle { Layout.fillWidth: true; height: 1; color: win.lineColor }
             RowLayout {
-                Layout.fillWidth: true; spacing: 16
-                ColumnLayout {
-                    Layout.fillWidth: true; spacing: 5
-                    Label { text: backend.dirty ? qsTr("Ready to apply") : qsTr("Current cursor"); font.bold: true; font.pixelSize: 13 }
-                    Label {
-                        objectName: "statusLabel"
-                        text: backend.message.length ? backend.message : qsTr("Changes are saved for your next login.")
-                        color: backend.failed ? "#ff9292" : "#959ba9"
-                        Layout.fillWidth: true; wrapMode: Text.WordWrap; font.pixelSize: 12
-                    }
+                Layout.fillWidth: true; spacing: 18
+                Label {
+                    objectName: "statusLabel"
+                    text: backend.message.length ? backend.message : backend.dirty ? qsTr("Pack selected. Press Apply.") : qsTr("● Active pack")
+                    color: backend.failed ? theme.accent : win.quietColor
+                    Layout.fillWidth: true; wrapMode: Text.WordWrap; font.pixelSize: 11
                 }
-                ActionButton { text: qsTr("Undo"); enabled: backend.canUndo && !win.busy; onClicked: undoDialog.open() }
-                ActionButton {
+                TextButton { text: qsTr("Undo"); enabled: backend.canUndo && !win.busy; onClicked: undoDialog.open() }
+                TextButton {
                     objectName: "applyButton"
                     text: win.busy ? qsTr("Applying…") : qsTr("Apply")
                     highlighted: true
@@ -279,47 +278,51 @@ ApplicationWindow {
                     onClicked: win.applySelection()
                 }
             }
+            Label { text: qsTr("↑↓ select   Space apply   Ctrl+Z undo   ? help"); color: win.quietColor; font.pixelSize: 10; Layout.fillWidth: true; wrapMode: Text.WordWrap }
         }
     }
-    Dialog {
+    Sheet {
         id: addDialog
-        anchors.centerIn: parent
-        width: Math.min(540, win.width - 60)
-        title: qsTr("Add a cursor theme")
-        modal: true
-        standardButtons: Dialog.Close
-        ColumnLayout {
-            width: parent.width; spacing: 18
-            Label { Layout.fillWidth: true; text: qsTr("Unpack an Xcursor theme into the themes folder. Each theme should contain a cursors folder. Return here and refresh the list."); wrapMode: Text.WordWrap }
-            ActionButton { text: qsTr("Open themes folder"); onClicked: backend.openThemesDirectory() }
-            Label { Layout.fillWidth: true; text: qsTr("Six color themes are included. Hyprcursor-only themes need an Xcursor version for application compatibility."); color: "#959ba9"; wrapMode: Text.WordWrap; font.pixelSize: 12 }
+        title: qsTr("Add a cursor pack")
+        contentItem: ColumnLayout {
+            spacing: 18
+            Label { Layout.fillWidth: true; text: qsTr("Unpack an Xcursor theme into the themes folder. Each theme should contain a cursors folder. Return here and refresh the list."); color: theme.foreground; wrapMode: Text.WordWrap }
+            TextButton { text: qsTr("Open themes folder"); onClicked: backend.openThemesDirectory() }
+        }
+        footer: DialogButtonBox {
+            TextButton { text: qsTr("Close"); DialogButtonBox.buttonRole: DialogButtonBox.RejectRole }
+            onRejected: addDialog.reject()
         }
     }
-    Dialog {
+    Sheet {
         id: helpDialog
-        anchors.centerIn: parent
-        width: Math.min(500, win.width - 60)
         title: qsTr("Keyboard shortcuts")
-        modal: true
-        standardButtons: Dialog.Close
-        Label { width: parent.width; text: qsTr("↑ / ↓     Select a theme\nSpace     Apply\nCtrl+Z    Undo the last change\nCtrl+R    Refresh themes\nEsc       Discard selection\nQ         Quit\n?         Keyboard shortcuts"); lineHeight: 1.7; wrapMode: Text.WordWrap }
+        contentItem: Label { text: qsTr("↑ / ↓     Select a pack\nSpace     Apply\nCtrl+Z    Undo the last change\nCtrl+R    Refresh packs\nEsc       Discard selection\nQ         Quit\n?         Keyboard shortcuts"); color: theme.foreground; lineHeight: 1.7; wrapMode: Text.WordWrap }
+        footer: DialogButtonBox {
+            TextButton { text: qsTr("Close"); DialogButtonBox.buttonRole: DialogButtonBox.RejectRole }
+            onRejected: helpDialog.reject()
+        }
     }
-    Dialog {
+    Sheet {
         id: quitDialog
-        anchors.centerIn: parent; width: 420
         title: qsTr("Discard the selection?")
-        modal: true
-        standardButtons: Dialog.Discard | Dialog.Cancel
-        Label { width: parent.width; text: qsTr("The selected cursor has not been applied yet."); wrapMode: Text.WordWrap }
-        onDiscarded: { win.quitting = true; win.close(); }
+        contentItem: Label { text: qsTr("The selected cursor has not been applied yet."); color: theme.foreground; wrapMode: Text.WordWrap }
+        footer: DialogButtonBox {
+            TextButton { text: qsTr("Cancel"); DialogButtonBox.buttonRole: DialogButtonBox.RejectRole }
+            TextButton { text: qsTr("Discard"); DialogButtonBox.buttonRole: DialogButtonBox.DestructiveRole }
+            onRejected: quitDialog.reject()
+            onDiscarded: { win.quitting = true; win.close(); }
+        }
     }
-    Dialog {
+    Sheet {
         id: undoDialog
-        anchors.centerIn: parent; width: 440
         title: qsTr("Restore the previous cursor?")
-        modal: true
-        standardButtons: Dialog.Ok | Dialog.Cancel
-        Label { width: parent.width; text: qsTr("Restore the settings from before the last application. The current selection will be discarded."); wrapMode: Text.WordWrap }
-        onAccepted: { win.busy = true; Qt.callLater(function() { backend.undo(); win.busy = false; }); }
+        contentItem: Label { text: qsTr("Restore the settings from before the last application. The current selection will be discarded."); color: theme.foreground; wrapMode: Text.WordWrap }
+        footer: DialogButtonBox {
+            TextButton { text: qsTr("Cancel"); DialogButtonBox.buttonRole: DialogButtonBox.RejectRole }
+            TextButton { text: qsTr("Restore"); DialogButtonBox.buttonRole: DialogButtonBox.AcceptRole }
+            onRejected: undoDialog.reject()
+            onAccepted: { undoDialog.accept(); win.busy = true; Qt.callLater(function() { backend.undo(); win.busy = false; }); }
+        }
     }
 }

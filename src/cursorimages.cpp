@@ -26,65 +26,34 @@ QImage CursorImages::requestImage(const QString &id, QSize *size, const QSize &)
     return result;
 }
 
-bool generateThemes(const QString &source, const QString &destination, QString *error) {
-    const QList<QPair<QString, QString>> palettes = {
-        {"Ocean", "#68aaff"}, {"Mint", "#73dfb1"}, {"Violet", "#bc9bff"},
-        {"Amber", "#ffbd66"}, {"Rose", "#ff91b3"}, {"Ice", "#c5f1ff"}
-    };
-    if (!QFileInfo::exists(source + "/cursors/default")) {
-        *error = "Adwaita cursors are missing: " + source;
-        return false;
-    }
-    for (const auto &palette : palettes) {
-        const QString root = destination + "/Cursora-" + palette.first;
-        if (!QDir().mkpath(root + "/cursors")) { *error = "Cannot create " + root; return false; }
-        QFile index(root + "/index.theme");
-        if (!index.open(QIODevice::WriteOnly)) { *error = index.errorString(); return false; }
-        index.write(QString("[Icon Theme]\nName=Cursora %1\nComment=Adwaita recolored by Cursora\nInherits=Adwaita\n").arg(palette.first).toUtf8());
-        index.close();
-        const QColor tint(palette.second);
-        const auto entries = QDir(source + "/cursors").entryInfoList(QDir::Files, QDir::Name);
-        for (const auto &entry : entries) {
-            const QString out = root + "/cursors/" + entry.fileName();
-            if (entry.isSymLink()) {
-                QFile original(entry.absoluteFilePath());
-                const QString target = QFileInfo(original.symLinkTarget()).fileName();
-                QFile::remove(out);
-                // Relative symlinks remain relocatable inside the package.
-                if (!QFile::link(target, out)) { *error = "Cannot link " + out; return false; }
-                continue;
-            }
-            XcursorImages *images = XcursorFilenameLoadAllImages(QFile::encodeName(entry.absoluteFilePath()).constData());
-            if (!images) { *error = "Cannot read " + entry.absoluteFilePath(); return false; }
+bool monochromeThemes(const QString &directory, QString *error) {
+    const auto themes = QDir(directory).entryInfoList({"Cursora-*"}, QDir::Dirs | QDir::NoDotAndDotDot);
+    if (themes.isEmpty()) { *error = "No cursor packs found in " + directory; return false; }
+    for (const auto &theme : themes) {
+        const auto files = QDir(theme.absoluteFilePath() + "/cursors").entryInfoList(QDir::Files);
+        for (const auto &file : files) {
+            if (file.isSymLink()) continue;
+            const QByteArray path = QFile::encodeName(file.absoluteFilePath());
+            XcursorImages *images = XcursorFilenameLoadAllImages(path.constData());
+            if (!images) { *error = "Cannot read cursor: " + file.absoluteFilePath(); return false; }
+            bool changed = false;
             for (int i = 0; i < images->nimage; ++i) {
                 XcursorImage *image = images->images[i];
                 for (unsigned int p = 0; p < image->width * image->height; ++p) {
                     const QRgb pixel = image->pixels[p];
-                    const int alpha = qAlpha(pixel);
-                    if (!alpha) continue;
-                    const QRgb rgb = qUnpremultiply(pixel);
-                    // Replace dark neutral fills; retain white outlines and colored status marks.
-                    const int hi = qMax(qRed(rgb), qMax(qGreen(rgb), qBlue(rgb)));
-                    const int lo = qMin(qRed(rgb), qMin(qGreen(rgb), qBlue(rgb)));
-                    if (hi < 160 && hi - lo < 24) {
-                        const qreal shade = 0.85 + hi / 1066.0;
-                        image->pixels[p] = qPremultiply(qRgba(qRound(tint.red() * shade),
-                            qRound(tint.green() * shade), qRound(tint.blue() * shade), alpha));
-                    }
+                    if (!qAlpha(pixel)) continue;
+                    const QRgb straight = qUnpremultiply(pixel);
+                    if (qRed(straight) == qGreen(straight) && qRed(straight) == qBlue(straight)) continue;
+                    const int gray = qGray(straight);
+                    image->pixels[p] = qPremultiply(qRgba(gray, gray, gray, qAlpha(pixel)));
+                    changed = true;
                 }
             }
-            const bool ok = XcursorFilenameSaveImages(QFile::encodeName(out).constData(), images);
+            // Keep hotspots, frame timing, sizes and aliases from the original pack.
+            const bool ok = !changed || XcursorFilenameSaveImages(path.constData(), images);
             XcursorImagesDestroy(images);
-            if (!ok) { *error = "Cannot write " + out; return false; }
+            if (!ok) { *error = "Cannot save cursor: " + file.absoluteFilePath(); return false; }
         }
-        QFile notice(root + "/COPYING");
-        if (!notice.open(QIODevice::WriteOnly)) { *error = notice.errorString(); return false; }
-        notice.write("Based on Adwaita cursors by the GNOME Project, https://gitlab.gnome.org/GNOME/adwaita-icon-theme\n"
-                     "Color modifications by Cursora contributors, 2026. Licensed under CC BY-SA 3.0.\n"
-                     "https://creativecommons.org/licenses/by-sa/3.0/\n");
-        QFile license("/usr/share/licenses/spdx/CC-BY-SA-3.0.txt");
-        if (!license.open(QIODevice::ReadOnly)) { *error = license.errorString(); return false; }
-        notice.write(license.readAll());
     }
     return true;
 }

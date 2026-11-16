@@ -9,6 +9,7 @@
 #include <QQuickStyle>
 #include <QJsonDocument>
 #include <QJsonObject>
+#include <QScopeGuard>
 #include "backend.h"
 #include "theme.h"
 #include "translator.h"
@@ -72,8 +73,9 @@ private slots:
         const QByteArray gtk = "[Settings]\ngtk-theme-name=Personal\n";
         QVERIFY(write(config + "/hypr/hyprland.lua", main));
         QVERIFY(write(config + "/gtk-3.0/settings.ini", gtk));
+        QVERIFY(write(config + "/cursora/settings.json", "{\"theme\":\"Adwaita\",\"size\":40}"));
         Backend backend(dir.path(), {dir.path() + "/themes"}, false);
-        backend.setSelected("Example"); backend.setCursorSize(40);
+        backend.setSelected("Example");
         QVERIFY(backend.dirty());
         QVERIFY2(backend.apply(), qPrintable(backend.message()));
         QVERIFY(!backend.dirty());
@@ -98,7 +100,7 @@ private slots:
         Backend backend(dir.path(), {dir.path() + "/themes"}, false);
         backend.setSelected("Example");
         QVERIFY(backend.apply());
-        backend.setCursorSize(48); QVERIFY(backend.apply());
+        QVERIFY(backend.apply());
         QCOMPARE(read(dir.path() + "/.config/hypr/hyprland.lua").count("require(\"hypr.cursora\")"), 1);
         QVERIFY(backend.undo());
         QCOMPARE(backend.cursorSize(), 24);
@@ -148,20 +150,59 @@ private slots:
         QVERIFY(!QFileInfo::exists(config + "/gtk-3.0/settings.ini"));
         QVERIFY(!QFileInfo::exists(config + "/hypr/cursora.lua"));
     }
-    void sizeAndDiscardFollowTheSavedSelection() {
+    void sizeIsReadOnlyAndDiscardResetsSelection() {
         QTemporaryDir dir;
         Backend backend(dir.path(), {dir.path() + "/themes"}, false);
-        backend.setCursorSize(200); QCOMPARE(backend.cursorSize(), 96);
-        backend.setCursorSize(2); QCOMPARE(backend.cursorSize(), 16);
+        const auto property = backend.metaObject()->property(backend.metaObject()->indexOfProperty("cursorSize"));
+        QVERIFY(!property.isWritable());
         backend.setSelected("Example"); QVERIFY(backend.dirty());
         backend.discard(); QVERIFY(!backend.dirty()); QCOMPARE(backend.cursorSize(), 24);
+    }
+    void runtimeApplyRetainsSizeChangedOutsideTheApp() {
+        QTemporaryDir dir;
+        const QByteArray oldPath = qgetenv("PATH"), oldConfig = qgetenv("XDG_CONFIG_HOME"),
+            oldState = qgetenv("XDG_STATE_HOME"), oldData = qgetenv("XDG_DATA_HOME"),
+            oldSession = qgetenv("HYPRLAND_INSTANCE_SIGNATURE");
+        const auto restoreEnvironment = qScopeGuard([&] {
+            qputenv("PATH", oldPath); qputenv("XDG_CONFIG_HOME", oldConfig);
+            if (oldState.isEmpty()) qunsetenv("XDG_STATE_HOME"); else qputenv("XDG_STATE_HOME", oldState);
+            if (oldData.isEmpty()) qunsetenv("XDG_DATA_HOME"); else qputenv("XDG_DATA_HOME", oldData);
+            if (oldSession.isEmpty()) qunsetenv("HYPRLAND_INSTANCE_SIGNATURE"); else qputenv("HYPRLAND_INSTANCE_SIGNATURE", oldSession);
+        });
+        const QString bin = dir.path() + "/bin";
+        QVERIFY(write(bin + "/size", "24\n"));
+        QVERIFY(write(bin + "/gsettings", "#!/bin/sh\nif [ \"$1\" = get ]; then\n"
+            "if [ \"$3\" = cursor-theme ]; then printf \"'Adwaita'\\n\"; else cat \"$(dirname \"$0\")/size\"; fi\nfi\n"));
+        QVERIFY(write(bin + "/hyprctl", "#!/bin/sh\nif [ \"$1\" != configerrors ]; then printf 'ok\\n'; fi\n"));
+        QVERIFY(write(bin + "/dbus-update-activation-environment", "#!/bin/sh\nexit 0\n"));
+        for (const auto &name : {"gsettings", "hyprctl", "dbus-update-activation-environment"})
+            QVERIFY(QFile::setPermissions(bin + "/" + name, QFile::ReadOwner | QFile::WriteOwner | QFile::ExeOwner));
+        qputenv("PATH", bin.toUtf8() + ":" + oldPath);
+        qputenv("XDG_CONFIG_HOME", (dir.path() + "/.config").toUtf8());
+        qputenv("XDG_STATE_HOME", (dir.path() + "/.state").toUtf8());
+        qputenv("XDG_DATA_HOME", (dir.path() + "/.data").toUtf8());
+        qputenv("HYPRLAND_INSTANCE_SIGNATURE", "test");
+        QVERIFY(write(dir.path() + "/.config/hypr/hyprland.lua", "-- test configuration\n"));
+        QVERIFY(write(dir.path() + "/.config/cursora/settings.json", "{\"theme\":\"Adwaita\",\"size\":40}"));
+        theme(dir.path() + "/themes", "Example");
+        Backend backend({}, {dir.path() + "/themes"}, true);
+        QCOMPARE(backend.cursorSize(), 24);
+        QVERIFY(write(bin + "/size", "42\n"));
+        backend.setSelected("Example");
+        QVERIFY2(backend.apply(), qPrintable(backend.message()));
+        QCOMPARE(backend.cursorSize(), 42);
+        QVERIFY(read(dir.path() + "/.config/hypr/cursora.lua").contains("\"42\""));
+        QVERIFY(read(dir.path() + "/.config/gtk-3.0/settings.ini").contains("gtk-cursor-theme-size=42"));
     }
     void themeAndTranslatorFollowReplacedFiles() {
         QTemporaryDir dir;
         Theme theme(dir.path());
         QCOMPARE(theme.accent(), QString("#FFD60A"));
-        QVERIFY(write(dir.path() + "/theme/colors.toml", "accent = \"#112233\"\n"));
+        QVERIFY(write(dir.path() + "/theme/colors.toml", "accent = \"#112233\"\nbackground = \"#101020\"\nforeground = \"#fafafa\"\nselection = \"#353545\"\n"));
         QTRY_COMPARE(theme.accent(), QString("#112233"));
+        QCOMPARE(theme.background(), QString("#101020"));
+        QCOMPARE(theme.foreground(), QString("#fafafa"));
+        QCOMPARE(theme.selection(), QString("#353545"));
         const QString lang = dir.path() + "/language";
         QVERIFY(write(lang, "ru\n"));
         Translator translator(lang);
@@ -179,11 +220,11 @@ private slots:
         QVERIFY(!provider.requestImage(QString(id).replace("|", "%7C"), &size, {}).isNull());
         QVERIFY(provider.requestImage("invalid", &size, {}).isNull());
     }
-    void qmlSelectionSizeApplyAndLanguageSwitch() {
+    void qmlSelectionApplyAndLanguageSwitch() {
         QTest::failOnWarning(QRegularExpression(".*"));
         QTemporaryDir dir;
         // Use real installed shapes while keeping every configuration write in a temp home.
-        Backend backend(dir.path(), {"/usr/share/icons"}, false);
+        Backend backend(dir.path(), {QCoreApplication::applicationDirPath() + "/../themes", "/usr/share/icons"}, false);
         Theme theme(dir.path());
         const QString language = dir.path() + "/language";
         QVERIFY(write(language, "ru\n"));
@@ -201,12 +242,11 @@ private slots:
         QVERIFY(window); QTest::qWait(150);
         auto *list = window->findChild<QQuickItem *>("themeList");
         QVERIFY(list); list->forceActiveFocus();
-        QTest::keyClick(window, Qt::Key_Down);
-        QVERIFY(backend.selected() != "Adwaita");
-        auto *sizeBox = window->findChild<QQuickItem *>("sizeBox");
-        QVERIFY(sizeBox); sizeBox->forceActiveFocus();
         QTest::keyClick(window, Qt::Key_Up);
-        QCOMPARE(backend.cursorSize(), 25);
+        QVERIFY(backend.selected() != "Adwaita");
+        QVERIFY(!window->findChild<QQuickItem *>("sizeBox"));
+        QVERIFY(!window->findChild<QQuickItem *>("sizeSlider"));
+        QCOMPARE(backend.cursorSize(), 24);
         auto *apply = window->findChild<QQuickItem *>("applyButton");
         QVERIFY(apply);
         const QPointF buttonPoint = apply->mapToScene(QPointF(apply->width() / 2, apply->height() / 2));

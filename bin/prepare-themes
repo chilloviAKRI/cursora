@@ -1,0 +1,47 @@
+#!/usr/bin/env python3
+"""Prepare pinned cursor packs without executing downloaded code."""
+import hashlib
+import json
+from pathlib import Path
+import shutil
+import tarfile
+import tempfile
+
+root = Path(__file__).resolve().parent.parent
+vendor = root / 'vendor'
+for record in json.loads((vendor / 'sources.json').read_text()):
+    path = vendor / record['file']
+    if hashlib.sha256(path.read_bytes()).hexdigest() != record['sha256']:
+        raise SystemExit(f'Checksum mismatch: {path.name}')
+packs = json.loads((root / 'src/packs.json').read_text())
+destination = root / 'build/themes'
+if destination.is_symlink():
+    raise SystemExit('Refusing a symbolic link at build/themes')
+if destination.exists():
+    shutil.rmtree(destination)
+destination.mkdir(parents=True)
+with tempfile.TemporaryDirectory(prefix='cursor-packs-', dir=root / 'build') as temporary:
+    extracted = {}
+    for filename in sorted({p[k] for p in packs.values() for k in ('archive', 'source')}):
+        path = Path(temporary) / filename
+        path.mkdir()
+        with tarfile.open(vendor / filename) as archive:
+            archive.extractall(path, filter='data')
+        extracted[filename] = path
+    for name, pack in packs.items():
+        original = extracted[pack['archive']] / pack['member']
+        target = destination / name
+        # Preserve aliases rather than expanding them into duplicate cursor data.
+        shutil.copytree(original, target, symlinks=True)
+        (target / 'index.theme').write_text(
+            f'[Icon Theme]\nName={pack["family"]} {pack["tone"].title()}\n'
+            'Comment=Monochrome edition for Cursora\nInherits=Adwaita\n')
+        source = extracted[pack['source']] / pack['sourceRoot']
+        shutil.copyfile(source / 'LICENSE', target / 'COPYING')
+        (target / 'NOTICE').write_text(
+            f'{pack["family"]} {pack["version"]}: {pack["url"]}\n'
+            f'License: {pack["license"]}. See COPYING and the upstream source archive.\n'
+            'Cursora modifications (2026): grayscale status indicators and renamed theme.\n'
+            'All original shapes, sizes, hotspots, animation frames and timings are retained.\n'
+            'Sources and preparation tools: /usr/share/cursora/sources/\n')
+print(f'Prepared {len(packs)} monochrome cursor themes')

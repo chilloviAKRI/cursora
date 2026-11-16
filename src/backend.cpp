@@ -54,12 +54,14 @@ Backend::Backend(const QString &home, const QStringList &roots, bool runtime)
     if (!saved.isEmpty()) {
         m_active = saved.value("theme").toString();
         m_activeSize = qBound(16, saved.value("size").toInt(24), 96);
-    } else if (runtime) {
+    }
+    if (runtime) {
         bool ok = false;
-        m_active = unquote(run("gsettings", {"get", "org.gnome.desktop.interface", "cursor-theme"}, &ok));
+        const QString liveTheme = unquote(run("gsettings", {"get", "org.gnome.desktop.interface", "cursor-theme"}, &ok));
+        if (ok) m_active = liveTheme;
         if (!ok) m_active = qEnvironmentVariable("XCURSOR_THEME", "Adwaita");
         const int size = run("gsettings", {"get", "org.gnome.desktop.interface", "cursor-size"}, &ok).toInt();
-        if (ok && size >= 16 && size <= 96) m_activeSize = size;
+        if (ok && size > 0) m_activeSize = size;
     }
     if (m_active.isEmpty()) m_active = "Adwaita";
     m_selected = m_active;
@@ -77,27 +79,23 @@ void Backend::setSelected(const QString &value) {
     m_selected = value;
     emit changed();
 }
-void Backend::setCursorSize(int value) {
-    value = qBound(16, value, 96);
-    if (value == m_size) return;
-    m_size = value;
-    emit changed();
-}
 
 void Backend::rescan() {
     QVariantList themes;
     QSet<QString> seen;
+    const QJsonObject packs = QJsonDocument::fromJson(read(":/packs.json")).object();
+    const QSet<QString> retired{ "Cursora-Amber", "Cursora-Ice", "Cursora-Mint", "Cursora-Ocean", "Cursora-Rose", "Cursora-Violet" };
     static const QRegularExpression valid("^[A-Za-z0-9][A-Za-z0-9_.+ -]{0,100}$");
     for (const auto &root : m_roots) {
         for (const auto &entry : QDir(root).entryInfoList(QDir::Dirs | QDir::NoDotAndDotDot, QDir::Name)) {
             const QString id = entry.fileName();
-            if (seen.contains(id) || !valid.match(id).hasMatch()) continue;
+            if (seen.contains(id) || retired.contains(id) || !valid.match(id).hasMatch()) continue;
             const QString path = entry.absoluteFilePath();
             if (!QFileInfo::exists(path + "/cursors/left_ptr") && !QFileInfo::exists(path + "/cursors/default")) continue;
             seen.insert(id);
             QSettings index(path + "/index.theme", QSettings::IniFormat);
             const QString name = index.value("Icon Theme/Name", id).toString();
-            themes << QVariantMap{{"id", id}, {"name", name}, {"path", path}, {"builtin", id.startsWith("Cursora-")}};
+            themes << QVariantMap{{"id", id}, {"name", name}, {"path", path}, {"builtin", packs.contains(id)}, {"pack", packs.value(id).toObject().toVariantMap()}};
         }
     }
     std::sort(themes.begin(), themes.end(), [](const QVariant &a, const QVariant &b) {
@@ -115,6 +113,29 @@ void Backend::rescan() {
         }
     }
     emit changed();
+}
+
+QString Backend::themeTitle(const QString &id) const {
+    for (const auto &value : m_themes) {
+        const auto theme = value.toMap();
+        if (theme["id"].toString() != id) continue;
+        const auto pack = theme["pack"].toMap();
+        if (pack.isEmpty()) return theme["name"].toString();
+        return tr("%1 · %2").arg(pack["family"].toString(), pack["tone"].toString() == "black" ? tr("Black") : tr("White"));
+    }
+    return id;
+}
+
+QString Backend::themeDescription(const QString &id) const {
+    for (const auto &value : m_themes) {
+        const auto theme = value.toMap();
+        if (theme["id"].toString() != id) continue;
+        const QString family = theme["pack"].toMap()["family"].toString();
+        if (family == "Bibata") return tr("Soft, rounded shapes");
+        if (family == "Phinger") return tr("Compact pointer, expressive hands");
+        if (family == "BreezeX") return tr("Sharp, angular shapes");
+    }
+    return tr("Installed cursor pack");
 }
 
 QString Backend::preview(const QString &id, const QString &shape, int size) const {
@@ -266,6 +287,14 @@ bool Backend::apply() {
         bool ok = false;
         const QString errors = run("hyprctl", {"configerrors"}, &ok);
         if (!ok || !errors.isEmpty()) return fail(tr("Fix the existing Hyprland configuration errors first: %1").arg(errors));
+    }
+    // The utility changes appearance only. Re-read the live size so an external
+    // size change made while this window was open is preserved as well.
+    if (m_runtime) {
+        bool ok = false;
+        const int size = run("gsettings", {"get", "org.gnome.desktop.interface", "cursor-size"}, &ok).toInt();
+        if (!ok || size <= 0) return fail(tr("Cannot read the current cursor size."));
+        m_size = size;
     }
     const auto files = plannedFiles();
     const QString backup = state() + "/cursora/backups/" + QDateTime::currentDateTimeUtc().toString("yyyyMMdd-HHmmss-") + QUuid::createUuid().toString(QUuid::Id128).left(8);

@@ -1,0 +1,50 @@
+[
+  {
+    "file": "Bibata-Modern-Classic.tar.xz",
+    "url": "https://github.com/ful1e5/Bibata_Cursor/releases/download/v2.0.7/Bibata-Modern-Classic.tar.xz",
+    "sha256": "7d3495864e5bbef02f5e77de760b2905903b63c71495a78ef6306d19a3b556d8",
+    "bytes": 1767748
+  },
+  {
+    "file": "Bibata-Modern-Ice.tar.xz",
+    "url": "https://github.com/ful1e5/Bibata_Cursor/releases/download/v2.0.7/Bibata-Modern-Ice.tar.xz",
+    "sha256": "a68cae60c4dc706350e194ebc91c5fe48bc7bc9d59e119555834a2a7ee5078ef",
+    "bytes": 1701468
+  },
+  {
+    "file": "phinger-cursors-variants.tar.bz2",
+    "url": "https://github.com/phisch/phinger-cursors/releases/download/v2.2/phinger-cursors-variants.tar.bz2",
+    "sha256": "46d4cfc30a38c19cada3339027b5a78f7b0bf74f3220eba7001c4fdd9d5a6e56",
+    "bytes": 1922305
+  },
+  {
+    "file": "BreezeX-Black.tar.xz",
+    "url": "https://github.com/ful1e5/BreezeX_Cursor/releases/download/v2.0.1/BreezeX-Black.tar.xz",
+    "sha256": "773b75523748173409ee622841b0f74b1e80617a5c5b3dcbb53a7ac3d06cc233",
+    "bytes": 902832
+  },
+  {
+    "file": "BreezeX-Light.tar.xz",
+    "url": "https://github.com/ful1e5/BreezeX_Cursor/releases/download/v2.0.1/BreezeX-Light.tar.xz",
+    "sha256": "40c1bdb224e611e03c9865a49a5b4f8131974cb6fab30af428c2a1a969484aa8",
+    "bytes": 921760
+  },
+  {
+    "file": "Bibata-source.tar.gz",
+    "url": "https://codeload.github.com/ful1e5/Bibata_Cursor/tar.gz/refs/tags/v2.0.7",
+    "sha256": "1f21e5cade53d668476f973bd8ec827882a0e32c38e0e766abf007f8b3b46313",
+    "bytes": 212205
+  },
+  {
+    "file": "BreezeX-source.tar.gz",
+    "url": "https://codeload.github.com/ful1e5/BreezeX_Cursor/tar.gz/refs/tags/v2.0.1",
+    "sha256": "097b4df96127437c29bbfb68dc2cb08d6001c048cb7509ea7e391ba308dcf8f1",
+    "bytes": 131056
+  },
+  {
+    "file": "Phinger-source.tar.gz",
+    "url": "https://codeload.github.com/phisch/phinger-cursors/tar.gz/refs/tags/v2.2",
+    "sha256": "2f2a081ebd219d43af13f75d80563c617781196ffc4de32e7668b80a064eca62",
+    "bytes": 1022978
+  }
+]

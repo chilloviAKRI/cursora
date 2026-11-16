@@ -6,3 +6,5 @@ cd "$ROOT/build/tests"
 qmake6 "$ROOT/tests/cursora_tests.pro"
 make -j"$(nproc)"
 QT_QPA_PLATFORM=offscreen QT_QPA_PLATFORMTHEME= QT_QUICK_BACKEND=software QT_FORCE_STDERR_LOGGING=1 ./cursora_tests
+
+python3 "$ROOT/tests/check_packs.py"

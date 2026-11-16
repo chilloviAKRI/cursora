@@ -100,9 +100,24 @@ void Theme::reload() {
         if (QFileInfo::exists(path))
             m_watcher.addPath(path);
 
-    const auto accent = readAccent(m_directory + "/theme/colors.toml");
-    if (accent != m_accent) {
-        m_accent = accent;
-        emit changed();
-    }
+    const QString path = m_directory + "/theme/colors.toml";
+    QFile colors(path);
+    const QString contents = colors.open(QIODevice::ReadOnly) ? QString::fromUtf8(colors.readAll()) : QString();
+    auto readColor = [&](const QString &key, const QString &fallback) {
+        const QRegularExpression expression("^\\s*" + QRegularExpression::escape(key) + "\\s*=\\s*[\"'](#[0-9a-fA-F]{6})[\"']", QRegularExpression::MultilineOption);
+        const auto match = expression.match(contents);
+        return match.hasMatch() ? match.captured(1) : fallback;
+    };
+    const QString accent = readAccent(path);
+    const QString background = readColor("background", "#111111");
+    const QString foreground = readColor("foreground", "#eeeeee");
+    const QString muted = readColor("light_foreground", "#999999");
+    const QString selection = readColor("selection", "#2b2b2b");
+    if (accent == m_accent && background == m_background && foreground == m_foreground && muted == m_muted && selection == m_selection) return;
+    m_accent = accent;
+    m_background = background;
+    m_foreground = foreground;
+    m_muted = muted;
+    m_selection = selection;
+    emit changed();
 }
