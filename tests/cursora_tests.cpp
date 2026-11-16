@@ -173,7 +173,8 @@ private slots:
         QVERIFY(write(bin + "/size", "24\n"));
         QVERIFY(write(bin + "/gsettings", "#!/bin/sh\nif [ \"$1\" = get ]; then\n"
             "if [ \"$3\" = cursor-theme ]; then printf \"'Adwaita'\\n\"; else cat \"$(dirname \"$0\")/size\"; fi\nfi\n"));
-        QVERIFY(write(bin + "/hyprctl", "#!/bin/sh\nif [ \"$1\" != configerrors ]; then printf 'ok\\n'; fi\n"));
+        QVERIFY(write(bin + "/hyprctl", "#!/bin/sh\nprintf '%s\\n' \"$*\" >> \"$(dirname \"$0\")/hyprctl-calls\"\n"
+            "if [ \"$1\" != configerrors ]; then printf 'ok\\n'; fi\n"));
         QVERIFY(write(bin + "/dbus-update-activation-environment", "#!/bin/sh\nexit 0\n"));
         for (const auto &name : {"gsettings", "hyprctl", "dbus-update-activation-environment"})
             QVERIFY(QFile::setPermissions(bin + "/" + name, QFile::ReadOwner | QFile::WriteOwner | QFile::ExeOwner));
@@ -193,6 +194,7 @@ private slots:
         QCOMPARE(backend.cursorSize(), 42);
         QVERIFY(read(dir.path() + "/.config/hypr/cursora.lua").contains("\"42\""));
         QVERIFY(read(dir.path() + "/.config/gtk-3.0/settings.ini").contains("gtk-cursor-theme-size=42"));
+        QVERIFY(read(bin + "/hyprctl-calls").contains("--batch setcursor default 42;setcursor Example 42"));
     }
     void themeAndTranslatorFollowReplacedFiles() {
         QTemporaryDir dir;

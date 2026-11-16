@@ -35,7 +35,10 @@ with tempfile.TemporaryDirectory(prefix='cursor-packs-', dir=root / 'build') as 
         shutil.copytree(original, target, symlinks=True)
         (target / 'index.theme').write_text(
             f'[Icon Theme]\nName={pack["family"]} {pack["tone"].title()}\n'
-            'Comment=Monochrome edition for Cursora\nInherits=Adwaita\n')
+            'Comment=Monochrome edition for Cursora\n')
+        # Hyprland 0.56 collects inherited cursor directories in a sorted set,
+        # which can give Adwaita priority over this theme. The packs contain
+        # their own shapes and aliases, so keep them self-contained.
         source = extracted[pack['source']] / pack['sourceRoot']
         shutil.copyfile(source / 'LICENSE', target / 'COPYING')
         (target / 'NOTICE').write_text(

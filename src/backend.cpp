@@ -264,7 +264,12 @@ bool Backend::applyRuntime(QString *error, const QString &overrideTheme, int ove
         const QString result = run("gsettings", {"set", "org.gnome.desktop.interface", setting.first, setting.second}, &ok);
         if (!ok) { *error = tr("Cannot update desktop cursor settings: %1").arg(result); return false; }
     }
-    const QString cursorResult = run("hyprctl", {"setcursor", selected, QString::number(size)}, &ok);
+    // Hyprland caches Xcursor images by theme name and size. A package update
+    // can replace a theme without changing either, so invalidate that cache
+    // and select the requested theme in one compositor transaction.
+    const QString refresh = selected == "default" ? "Adwaita" : "default";
+    const QString batch = QString("setcursor %1 %2;setcursor %3 %2").arg(refresh, QString::number(size), selected);
+    const QString cursorResult = run("hyprctl", {"--batch", batch}, &ok);
     if (!ok || cursorResult.contains("error", Qt::CaseInsensitive) || cursorResult.contains("failed", Qt::CaseInsensitive)) {
         *error = tr("Cannot apply the cursor: %1").arg(cursorResult); return false;
     }

@@ -2,6 +2,7 @@
 """Validate the shipped cursor assets, including every animation frame."""
 from array import array
 import json
+import configparser
 from pathlib import Path
 import struct
 import sys
@@ -9,6 +10,29 @@ import tarfile
 
 root = Path(__file__).resolve().parent.parent
 packs = json.loads((root / 'src/packs.json').read_text())
+
+def compositor_shape_source(theme, shape):
+    """Reproduce Hyprland 0.56's inherited-directory precedence for installed packs."""
+    pending, visited, directories = [theme], set(), {}
+    while pending:
+        name = pending.pop()
+        if name in visited:
+            continue
+        visited.add(name)
+        path = root / 'build/themes' / name
+        if not path.exists():
+            path = Path('/usr/share/icons') / name
+        if (path / 'cursors').is_dir():
+            directories[str(Path('/usr/share/icons') / name / 'cursors')] = (name, path / 'cursors')
+        index = configparser.ConfigParser()
+        index.read(path / 'index.theme')
+        if index.has_section('Icon Theme'):
+            pending.extend(n.strip() for n in index['Icon Theme'].get('Inherits', '').split(',') if n.strip())
+    for virtual_path in sorted(directories):
+        name, directory = directories[virtual_path]
+        if (directory / shape).is_file():
+            return name
+    return None
 
 def frames(data):
     magic, header, version, count = struct.unpack_from('<4sIII', data)
@@ -32,6 +56,9 @@ checked_files = checked_frames = 0
 for theme, pack in packs.items():
     path = root / 'build/themes' / theme
     assert (path / 'COPYING').is_file(), f'Missing license: {theme}'
+    for shape in ('left_ptr', 'hand2', 'xterm', 'crosshair', 'ew-resize', 'watch'):
+        actual_source = compositor_shape_source(theme, shape)
+        assert actual_source == theme, f'{theme}/{shape} is overridden by {actual_source}'
     if pack['archive'] not in archives:
         archives[pack['archive']] = tarfile.open(root / 'vendor' / pack['archive'])
     archive = archives[pack['archive']]
