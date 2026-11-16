@@ -1,0 +1,15 @@
+[Desktop Entry]
+Type=Application
+Name=Cursora
+Name[ru]=Cursora — Курсоры
+Name[da]=Cursora — Markører
+Comment=Change cursor theme and size
+Comment[ru]=Выбор темы и размера курсора
+Comment[da]=Skift markørtema og størrelse
+Exec=cursora open
+Icon=cursora
+Terminal=false
+Categories=Settings;DesktopSettings;Utility;
+Keywords=cursor;mouse;pointer;theme;
+Keywords[ru]=курсор;мышь;указатель;тема;
+StartupWMClass=cursora

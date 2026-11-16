@@ -1,0 +1,8 @@
+<RCC><qresource prefix="/">
+<file>Main.qml</file>
+<file>mark.svg</file>
+<file>agent-skill.md</file>
+<file>i18n/en.json</file>
+<file>i18n/ru.json</file>
+<file>i18n/da.json</file>
+</qresource></RCC>

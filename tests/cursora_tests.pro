@@ -1,0 +1,9 @@
+QT += core gui qml quick quickcontrols2 testlib
+CONFIG += c++17 testcase link_pkgconfig
+PKGCONFIG += xcursor
+TARGET = cursora_tests
+TEMPLATE = app
+INCLUDEPATH += ../src
+HEADERS += ../src/backend.h ../src/theme.h ../src/translator.h ../src/cursorimages.h
+SOURCES += cursora_tests.cpp ../src/backend.cpp ../src/theme.cpp ../src/translator.cpp ../src/cursorimages.cpp
+RESOURCES += ../src/resources.qrc

@@ -1,0 +1,10 @@
+Theme and translation utilities are adapted from the Omarchy App Templates,
+based on Omacut and Monologue (MIT, Copyright David Heinemeier Hansson).
+
+The six cursor themes are recolored versions of Adwaita by the GNOME Project:
+https://gitlab.gnome.org/GNOME/adwaita-icon-theme
+Color modifications by Cursora contributors (2026).
+The derived cursor images are distributed under CC BY-SA 3.0:
+https://creativecommons.org/licenses/by-sa/3.0/
+Each installed theme includes attribution and the full license in COPYING.
+Rebuild them from the installed adwaita-cursors package using bin/build.
