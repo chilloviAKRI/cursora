@@ -53,6 +53,7 @@ def frames(data):
 
 archives = {}
 checked_files = checked_frames = 0
+straight_resize = {'n-resize', 'e-resize', 's-resize', 'w-resize'}
 for theme, pack in packs.items():
     path = root / 'build/themes' / theme
     assert (path / 'COPYING').is_file(), f'Missing license: {theme}'
@@ -71,7 +72,10 @@ for theme, pack in packs.items():
             assert {meta[0] for meta, _ in images} == {native, native * 2, native * 3, native * 4}
             for meta, pixels in images:
                 nominal, _, width, height, xhot, yhot, delay = meta
-                assert nominal == width == height and 0 <= xhot < width and 0 <= yhot < height
+                extent = nominal * 32 // 24 if cursor.name in straight_resize else nominal
+                assert extent == width == height and 0 <= xhot < width and 0 <= yhot < height
+                if cursor.name in straight_resize:
+                    assert xhot == yhot == extent // 2, f'Off-center hotspot in {cursor}'
                 assert any(pixel >> 24 for pixel in pixels), f'Empty image: {cursor}'
                 if cursor.name == 'left_ptr':
                     alpha = [p >> 24 for p in pixels]
@@ -88,7 +92,7 @@ for theme, pack in packs.items():
                         assert any(0 < (p >> 24) < 255 for p in pixels), f'Jagged link edge at {nominal}px'
                     elif nominal == native:
                         coverage = sum((p >> 24) >= 128 for p in pixels)
-                        assert coverage * 100 >= width * height * 28, f'Resize glyph is too small: {cursor}'
+                        assert coverage * 100 >= nominal * nominal * 28, f'Resize glyph is too small: {cursor}'
                     # Subpixel coverage may reach the edge, but solid artwork must fit.
                     edges = pixels[:width] + pixels[-width:] + pixels[::width] + pixels[width-1::width]
                     assert max(p >> 24 for p in edges) <= 64, f'Clipped glyph: {cursor}'

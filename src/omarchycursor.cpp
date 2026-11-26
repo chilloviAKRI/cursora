@@ -14,6 +14,7 @@
 namespace {
 using Kind = QByteArray;
 constexpr int BaseSize = 24;
+constexpr int StraightResizePadding = 4;
 constexpr QColor Ink(15, 15, 15);
 constexpr QColor Paper(247, 247, 247);
 
@@ -92,29 +93,20 @@ QPainterPath resizeGlyph(const Kind &direction) {
                     {shoulder, 5.25}, {shoulder, 2.35}, {-shoulder, 2.35}, {-shoulder, 5.25}});
         path.closeSubpath();
     } else {
-        const qreal tail = diagonal ? -11 : -9.85;
-        const qreal tip = diagonal ? 7.8 : 5.5;
-        const qreal shoulder = diagonal ? 1.35 : -.25;
-        line(path, {{tail, -2.25}, {shoulder, -2.25}, {shoulder, -5.2}, {tip, 0},
-                    {shoulder, 5.2}, {shoulder, 2.25}, {tail, 2.25}});
+        line(path, {{-11, -2.25}, {1.35, -2.25}, {1.35, -5.2}, {7.8, 0},
+                    {1.35, 5.2}, {1.35, 2.25}, {-11, 2.25}});
         path.closeSubpath();
-        if (diagonal) {
-            // Line up the ends of the corner bracket with the back of the arrow.
-            QPainterPath bracket;
-            line(bracket, {{9.85, -9.85}, {9.85, 9.85}, {-9.85, 9.85},
-                           {-9.85, 7.25}, {7.25, 7.25}, {7.25, -9.85}});
-            bracket.closeSubpath();
-            QTransform corner;
-            corner.translate(12, 12);
-            corner.rotate(angle - 45);
-            QPainterPath glyph = transform.map(path);
-            glyph.addPath(corner.map(bracket));
-            return glyph;
-        }
-        // Bend both ends of the stop back around the arrowhead.
-        line(path, {{-2.4, -9.85}, {9.85, -7.5}, {9.85, 7.5}, {-2.4, 9.85},
-                    {-2.9, 7.85}, {7.75, 5.95}, {7.75, -5.95}, {-2.9, -7.85}});
-        path.closeSubpath();
+        // The corner bracket keeps the same angle relative to the arrow in every direction.
+        QPainterPath bracket;
+        line(bracket, {{9.85, -9.85}, {9.85, 9.85}, {-9.85, 9.85},
+                       {-9.85, 7.25}, {7.25, 7.25}, {7.25, -9.85}});
+        bracket.closeSubpath();
+        QTransform corner;
+        corner.translate(12, 12);
+        corner.rotate(angle - 45);
+        QPainterPath glyph = transform.map(path);
+        glyph.addPath(corner.map(bracket));
+        return glyph;
     }
     return transform.map(path);
 }
@@ -126,12 +118,14 @@ QPoint logicalHotspot(const Kind &kind) {
     return {12, 12};
 }
 
-QImage render(const Kind &kind, int size, int frame) {
-    QImage image(size, size, QImage::Format_ARGB32_Premultiplied);
+QImage render(const Kind &kind, int size, int frame, int padding) {
+    const int extent = size + 2 * padding;
+    QImage image(extent, extent, QImage::Format_ARGB32_Premultiplied);
     image.fill(Qt::transparent);
     QPainter painter(&image);
     painter.setRenderHint(QPainter::Antialiasing, false);
     const qreal scale = qreal(size) / BaseSize;
+    painter.translate(padding, padding);
     painter.scale(scale, scale);
     QPainterPath path;
     if (kind == "left_ptr") {
@@ -259,9 +253,13 @@ bool writeCursor(const QString &filename, const Kind &kind) {
     auto *images = XcursorImagesCreate(4 * frames);
     if (!images) return false;
     const QPoint hotspot = logicalHotspot(kind);
+    // The rotated corner needs extra canvas. Keep the nominal size and scale unchanged.
+    const bool straightResize = kind.endsWith("-resize") && kind.chopped(7).size() == 1;
     for (int size : sizes) {
+        const int padding = straightResize ? StraightResizePadding * size / BaseSize : 0;
         for (int frame = 0; frame < frames; ++frame) {
-            auto *image = XcursorImageCreate(size, size);
+            const int extent = size + 2 * padding;
+            auto *image = XcursorImageCreate(extent, extent);
             if (!image) {
                 XcursorImagesDestroy(images);
                 return false;
@@ -269,10 +267,10 @@ bool writeCursor(const QString &filename, const Kind &kind) {
             image->size = size;
             const qreal artScale = kind == "progress" ? .66 :
                 kind == "context-menu" || kind == "copy" || kind == "alias" || kind == "help" ? .75 : 1;
-            image->xhot = qRound(hotspot.x() * artScale * size / BaseSize);
-            image->yhot = qRound(hotspot.y() * artScale * size / BaseSize);
+            image->xhot = padding + qRound(hotspot.x() * artScale * size / BaseSize);
+            image->yhot = padding + qRound(hotspot.y() * artScale * size / BaseSize);
             image->delay = frames > 1 ? 120 : 0;
-            const QImage pixels = render(kind, size, frame);
+            const QImage pixels = render(kind, size, frame, padding);
             std::memcpy(image->pixels, pixels.constBits(), pixels.sizeInBytes());
             images->images[images->nimage++] = image;
         }
