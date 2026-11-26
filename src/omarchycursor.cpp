@@ -24,8 +24,7 @@ void line(QPainterPath &path, std::initializer_list<QPointF> points) {
 }
 
 void drawArrow(QPainter &painter) {
-    // Two filled silhouettes give the pointer a single opaque outline.
-    // A stroked outline would put soft fringes on both sides of the edge.
+    // The nested shapes give the pointer one outline without a shadow.
     QPainterPath outline, body;
     line(outline, {{2, 2}, {22, 14}, {13, 15}, {17, 21},
                    {12, 23}, {8, 17}, {2, 21}, {2, 2}});
@@ -74,7 +73,12 @@ QImage render(const Kind &kind, int size, int frame) {
     painter.scale(scale, scale);
     QPainterPath path;
     if (kind == "left_ptr") {
+        // Rasterize the original silhouette at this frame's actual size.
+        // Smooth its edge coverage without resampling a smaller cursor.
+        painter.setRenderHint(QPainter::Antialiasing);
         drawArrow(painter);
+        painter.end();
+        return image;
     } else if (kind == "hand2" || kind == "grab" || kind == "grabbing") {
         if (kind == "hand2") {
             line(path, {{9, 3}, {11, 3}, {11, 9}, {18, 9}, {20, 11}, {20, 16},
@@ -171,7 +175,7 @@ QImage render(const Kind &kind, int size, int frame) {
     }
     painter.end();
     // Fractional transforms in the small badges can still leave partial
-    // coverage. Snap it to the same two solid inks as the main pointer.
+    // coverage. Keep these glyphs on their two-tone pixel grid.
     for (int y = 0; y < size; ++y) {
         auto *row = reinterpret_cast<QRgb *>(image.scanLine(y));
         for (int x = 0; x < size; ++x) {

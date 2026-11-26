@@ -73,9 +73,13 @@ for theme, pack in packs.items():
                 nominal, _, width, height, xhot, yhot, delay = meta
                 assert nominal == width == height and 0 <= xhot < width and 0 <= yhot < height
                 assert any(pixel >> 24 for pixel in pixels), f'Empty image: {cursor}'
-                assert set(pixels) <= {0x00000000, 0xff0f0f0f, 0xfff7f7f7}, f'Soft edge in {cursor} at {nominal}px'
                 if cursor.name == 'left_ptr':
-                    assert pixels[yhot * width + xhot] >> 24 == 255, f'Invisible click tip at {nominal}px'
+                    alpha = [p >> 24 for p in pixels]
+                    assert alpha[yhot * width + xhot] > 0, f'Invisible click tip at {nominal}px'
+                    assert any(0 < a < 255 for a in alpha), f'Jagged arrow edge at {nominal}px'
+                    assert pixels.count(0xff0f0f0f) >= nominal * nominal // 10, f'Arrow core is too small at {nominal}px'
+                else:
+                    assert set(pixels) <= {0x00000000, 0xff0f0f0f, 0xfff7f7f7}, f'Unexpected color in {cursor} at {nominal}px'
             if cursor.name in ('watch', 'progress'):
                 animation = [(meta[-1], pixels.tobytes()) for meta, pixels in images if meta[0] == native]
                 assert len(animation) == 4 and len(set(animation)) == 4 and all(delay > 0 for delay, _ in animation)
