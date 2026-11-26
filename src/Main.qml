@@ -25,6 +25,7 @@ ApplicationWindow {
 
     function titleFor(id) { return (translator.language, backend.themeTitle(id)); }
     function descriptionFor(id) { return (translator.language, backend.themeDescription(id)); }
+    function isTerminalPack(id) { return id === "Cursora-Omarchy-Terminal"; }
     function applySelection() {
         if (busy || themeList.count === 0) return;
         busy = true;
@@ -176,7 +177,8 @@ ApplicationWindow {
                                 Image {
                                     Layout.preferredWidth: 32; Layout.preferredHeight: 32
                                     source: backend.preview(row.modelData.id, "left_ptr", row.modelData.nativeSize)
-                                    fillMode: Image.PreserveAspectFit
+                                    fillMode: win.isTerminalPack(row.modelData.id) ? Image.Pad : Image.PreserveAspectFit
+                                    smooth: !win.isTerminalPack(row.modelData.id)
                                 }
                                 Label {
                                     text: win.titleFor(row.modelData.id)
@@ -228,12 +230,13 @@ ApplicationWindow {
                                 Image {
                                     anchors.centerIn: parent
                                     anchors.verticalCenterOffset: -12
-                                    readonly property int magnification: Math.max(1, Math.min(3,
+                                    readonly property int magnification: win.isTerminalPack(backend.selected) ? 1 : Math.max(1, Math.min(3,
                                         Math.floor((parent.height - 40) / Math.max(1, implicitHeight)),
                                         Math.floor((parent.width - 16) / Math.max(1, implicitWidth))))
                                     width: implicitWidth * magnification
                                     height: implicitHeight * magnification
-                                    source: backend.preview(backend.selected, "left_ptr", backend.themeSize(backend.selected))
+                                    source: backend.preview(backend.selected, "left_ptr", backend.themeSize(backend.selected)
+                                        * (win.isTerminalPack(backend.selected) ? 3 : 1))
                                     smooth: false
                                 }
                                 Label {
@@ -258,7 +261,13 @@ ApplicationWindow {
                                 ColumnLayout {
                                     required property var modelData
                                     Layout.fillWidth: true; spacing: 9
-                                    Image { Layout.alignment: Qt.AlignHCenter; Layout.preferredWidth: 32; Layout.preferredHeight: 32; source: backend.preview(backend.selected, modelData.shape, backend.themeSize(backend.selected)); fillMode: Image.PreserveAspectFit }
+                                    Image {
+                                        Layout.alignment: Qt.AlignHCenter
+                                        Layout.preferredWidth: 32; Layout.preferredHeight: 32
+                                        source: backend.preview(backend.selected, modelData.shape, backend.themeSize(backend.selected))
+                                        fillMode: win.isTerminalPack(backend.selected) ? Image.Pad : Image.PreserveAspectFit
+                                        smooth: !win.isTerminalPack(backend.selected)
+                                    }
                                     Label { text: modelData.label; Layout.alignment: Qt.AlignHCenter; color: win.quietColor; font.pixelSize: 9 }
                                 }
                             }

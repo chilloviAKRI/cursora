@@ -23,12 +23,16 @@ void line(QPainterPath &path, std::initializer_list<QPointF> points) {
     for (; point != points.end(); ++point) path.lineTo(*point);
 }
 
-QPainterPath arrow() {
-    QPainterPath path;
-    line(path, {{4, 4}, {20, 13}, {12, 14}, {16, 20},
-                {13, 21}, {9, 16}, {4, 19}, {4, 4}});
-    path.closeSubpath();
-    return path;
+void drawArrow(QPainter &painter) {
+    // Two filled silhouettes give the pointer a single opaque outline.
+    // A stroked outline would put soft fringes on both sides of the edge.
+    QPainterPath outline, body;
+    line(outline, {{2, 2}, {22, 14}, {13, 15}, {17, 21},
+                   {12, 23}, {8, 17}, {2, 21}, {2, 2}});
+    line(body, {{4, 5}, {18, 13.25}, {10.5, 14}, {14.75, 20.25},
+                {12.75, 21.25}, {8.75, 14.75}, {4, 18}, {4, 5}});
+    painter.fillPath(outline, Paper);
+    painter.fillPath(body, Ink);
 }
 
 void drawGlyph(QPainter &painter, const QPainterPath &path, bool filled = false) {
@@ -36,9 +40,7 @@ void drawGlyph(QPainter &painter, const QPainterPath &path, bool filled = false)
         return QPen(color, width, Qt::SolidLine, Qt::SquareCap, Qt::MiterJoin);
     };
     painter.setBrush(Qt::NoBrush);
-    painter.setPen(pen(Ink, filled ? 4.4 : 4.6));
-    painter.drawPath(path);
-    painter.setPen(pen(Paper, filled ? 2.8 : 3.2));
+    painter.setPen(pen(Paper, 3.2));
     painter.drawPath(path);
     painter.setPen(filled ? QPen(Qt::NoPen) : pen(Ink, 1.2));
     if (filled) painter.setBrush(Ink);
@@ -58,7 +60,7 @@ QPainterPath resizeGlyph(int angle, bool both) {
 
 QPoint logicalHotspot(const Kind &kind) {
     if (kind == "left_ptr" || kind == "context-menu" || kind == "copy" ||
-        kind == "alias" || kind == "help" || kind == "progress") return {4, 4};
+        kind == "alias" || kind == "help" || kind == "progress") return {2, 2};
     if (kind == "hand2") return {9, 3};
     return {12, 12};
 }
@@ -67,13 +69,12 @@ QImage render(const Kind &kind, int size, int frame) {
     QImage image(size, size, QImage::Format_ARGB32_Premultiplied);
     image.fill(Qt::transparent);
     QPainter painter(&image);
-    painter.setRenderHint(QPainter::Antialiasing);
+    painter.setRenderHint(QPainter::Antialiasing, false);
     const qreal scale = qreal(size) / BaseSize;
     painter.scale(scale, scale);
     QPainterPath path;
     if (kind == "left_ptr") {
-        drawGlyph(painter, arrow(), true);
-        painter.fillRect(QRectF(6, 9, 2, 2), Paper);
+        drawArrow(painter);
     } else if (kind == "hand2" || kind == "grab" || kind == "grabbing") {
         if (kind == "hand2") {
             line(path, {{9, 3}, {11, 3}, {11, 9}, {18, 9}, {20, 11}, {20, 16},
@@ -113,14 +114,18 @@ QImage render(const Kind &kind, int size, int frame) {
         if (kind == "progress") {
             painter.save();
             painter.scale(.66, .66);
-            drawGlyph(painter, arrow(), true);
+            drawArrow(painter);
             painter.restore();
             painter.translate(12, 12);
             painter.scale(.45, .45);
         }
         path.addRect(QRectF(4, 5, 16, 14));
         drawGlyph(painter, path, true);
-        painter.fillRect(QRectF(7 + 3 * (frame % 4), 11, 2, 2), Paper);
+        QPainterPath prompt;
+        line(prompt, {{7, 9}, {10, 12}, {7, 15}});
+        painter.setPen(QPen(Paper, 1.5, Qt::SolidLine, Qt::SquareCap, Qt::MiterJoin));
+        painter.drawPath(prompt);
+        painter.fillRect(QRectF(11 + 2 * frame, 14, 2, 2), Paper);
     } else if (kind == "not-allowed" || kind == "zoom-in" || kind == "zoom-out") {
         if (kind == "not-allowed") {
             path.addRect(QRectF(5, 5, 14, 14));
@@ -143,7 +148,7 @@ QImage render(const Kind &kind, int size, int frame) {
     } else {
         painter.save();
         painter.scale(.75, .75);
-        drawGlyph(painter, arrow(), true);
+        drawArrow(painter);
         painter.restore();
         path.addRect(QRectF(13, 13, 8, 8));
         drawGlyph(painter, path, true);
@@ -163,6 +168,17 @@ QImage render(const Kind &kind, int size, int frame) {
         }
         painter.setPen(QPen(Paper, 1));
         painter.drawPath(badge);
+    }
+    painter.end();
+    // Fractional transforms in the small badges can still leave partial
+    // coverage. Snap it to the same two solid inks as the main pointer.
+    for (int y = 0; y < size; ++y) {
+        auto *row = reinterpret_cast<QRgb *>(image.scanLine(y));
+        for (int x = 0; x < size; ++x) {
+            const QRgb pixel = row[x];
+            const int alpha = qAlpha(pixel);
+            row[x] = alpha < 128 ? 0 : qRed(pixel) * 2 >= alpha ? Paper.rgba() : Ink.rgba();
+        }
     }
     return image;
 }
