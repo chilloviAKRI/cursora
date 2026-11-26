@@ -175,7 +175,7 @@ ApplicationWindow {
                                 anchors.fill: parent; anchors.margins: 10; spacing: 11
                                 Image {
                                     Layout.preferredWidth: 32; Layout.preferredHeight: 32
-                                    source: backend.preview(row.modelData.id, "left_ptr", 48)
+                                    source: backend.preview(row.modelData.id, "left_ptr", row.modelData.nativeSize)
                                     fillMode: Image.PreserveAspectFit
                                 }
                                 Label {
@@ -214,27 +214,6 @@ ApplicationWindow {
                         Label { text: win.descriptionFor(backend.selected); color: win.quietColor; font.pixelSize: 11; Layout.fillWidth: true; wrapMode: Text.WordWrap }
                     }
                     RowLayout {
-                        Layout.fillWidth: true
-                        spacing: 12
-                        Label { text: qsTr("Cursor size"); color: theme.foreground }
-                        Slider {
-                            id: sizeSlider
-                            objectName: "sizeSlider"
-                            Layout.fillWidth: true
-                            from: 16; to: 128; stepSize: 1
-                            value: backend.cursorSize
-                            enabled: themeList.count > 0 && !win.busy
-                            Accessible.name: qsTr("Cursor size")
-                            onMoved: backend.cursorSize = Math.round(value)
-                        }
-                        Label {
-                            text: qsTr("%1 px").arg((translator.language, backend.cursorSize.toLocaleString(Qt.locale(), 'f', 0)))
-                            color: theme.foreground
-                            Layout.minimumWidth: 58
-                            horizontalAlignment: Text.AlignTrailing
-                        }
-                    }
-                    RowLayout {
                         Layout.fillWidth: true; Layout.fillHeight: true
                         Layout.minimumHeight: 160; Layout.maximumHeight: 220
                         spacing: 10
@@ -249,10 +228,13 @@ ApplicationWindow {
                                 Image {
                                     anchors.centerIn: parent
                                     anchors.verticalCenterOffset: -12
-                                    width: Math.min(128, backend.cursorSize)
-                                    height: width
-                                    source: backend.preview(backend.selected, "left_ptr", backend.cursorSize)
-                                    fillMode: Image.PreserveAspectFit
+                                    readonly property int magnification: Math.max(1, Math.min(3,
+                                        Math.floor((parent.height - 40) / Math.max(1, implicitHeight)),
+                                        Math.floor((parent.width - 16) / Math.max(1, implicitWidth))))
+                                    width: implicitWidth * magnification
+                                    height: implicitHeight * magnification
+                                    source: backend.preview(backend.selected, "left_ptr", backend.themeSize(backend.selected))
+                                    smooth: false
                                 }
                                 Label {
                                     anchors.bottom: parent.bottom; anchors.left: parent.left
@@ -276,7 +258,7 @@ ApplicationWindow {
                                 ColumnLayout {
                                     required property var modelData
                                     Layout.fillWidth: true; spacing: 9
-                                    Image { Layout.alignment: Qt.AlignHCenter; Layout.preferredWidth: 32; Layout.preferredHeight: 32; source: backend.preview(backend.selected, modelData.shape, 48); fillMode: Image.PreserveAspectFit }
+                                    Image { Layout.alignment: Qt.AlignHCenter; Layout.preferredWidth: 32; Layout.preferredHeight: 32; source: backend.preview(backend.selected, modelData.shape, backend.themeSize(backend.selected)); fillMode: Image.PreserveAspectFit }
                                     Label { text: modelData.label; Layout.alignment: Qt.AlignHCenter; color: win.quietColor; font.pixelSize: 9 }
                                 }
                             }

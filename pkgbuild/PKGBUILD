@@ -1,5 +1,5 @@
 pkgname=cursora
-pkgver=0.3.0
+pkgver=0.4.0
 pkgrel=1
 pkgdesc='Monochrome cursor pack picker for Omarchy'
 arch=('x86_64' 'aarch64')
@@ -23,5 +23,5 @@ package() {
   cp -rP build/themes/Cursora-* "$pkgdir/usr/share/icons/"
   install -d "$pkgdir/usr/share/cursora/sources"
   cp vendor/*-source.tar.* vendor/sources.json "$pkgdir/usr/share/cursora/sources/"
-  cp src/cursorimages.cpp bin/prepare-themes src/packs.json "$pkgdir/usr/share/cursora/sources/"
+  cp src/cursorimages.cpp src/omarchycursor.cpp bin/prepare-themes src/packs.json "$pkgdir/usr/share/cursora/sources/"
 }

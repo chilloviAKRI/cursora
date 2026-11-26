@@ -8,3 +8,5 @@ public:
     QImage requestImage(const QString &id, QSize *size, const QSize &requestedSize) override;
 };
 bool monochromeThemes(const QString &directory, QString *error);
+int nativeCursorSize(const QString &path, int preferred = 24);
+bool createOmarchyCursorPack(const QString &directory, QString *error);

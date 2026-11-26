@@ -7,5 +7,5 @@ Use `cursora list --json` for installed themes and `cursora status --json` for s
 Preview changes with `cursora apply --theme NAME --dry-run --json`.
 Apply an authorized choice using `cursora apply --theme NAME --json` inside Hyprland.
 Use `cursora undo --json` to restore the previous settings. Undo refuses to overwrite files edited since applying.
-Add `--size 48` to set the cursor size (16–128 px). If omitted, the current desktop size is retained. The command updates user Hyprland Lua, GTK, UWSM and default Xcursor settings, makes backups under `$XDG_STATE_HOME/cursora/backups`, validates the compositor configuration and applies the cursor live. Defaults follow the XDG Base Directory specification.
+Each pack uses the preferred size declared in its metadata or the native frame nearest to 24 px. The command updates user Hyprland Lua, GTK, UWSM and default Xcursor settings, makes backups under `$XDG_STATE_HOME/cursora/backups`, validates the compositor configuration and applies the cursor live. Defaults follow the XDG Base Directory specification.
 Use `cursora open` for the desktop interface.

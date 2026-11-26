@@ -9,13 +9,21 @@
 #include <QUrl>
 #include <X11/Xcursor/Xcursor.h>
 
+int nativeCursorSize(const QString &path, int preferred) {
+    auto *cursor = XcursorFilenameLoadImage(QFile::encodeName(path).constData(), preferred > 0 ? preferred : 24);
+    if (!cursor) return 0;
+    const int nominal = cursor->size;
+    XcursorImageDestroy(cursor);
+    return nominal;
+}
+
 QImage CursorImages::requestImage(const QString &id, QSize *size, const QSize &) {
     // The provider receives an absolute cursor file, avoiding global theme state.
     const QString decoded = QUrl::fromPercentEncoding(id.toUtf8());
     const int divider = decoded.lastIndexOf('|');
     if (divider < 0) return {};
     const QString path = decoded.left(divider);
-    const int requested = qBound(16, decoded.mid(divider + 1).toInt(), 128);
+    const int requested = qMax(1, decoded.mid(divider + 1).toInt());
     XcursorImage *cursor = XcursorFilenameLoadImage(QFile::encodeName(path).constData(), requested);
     if (!cursor) return {};
     QImage image(reinterpret_cast<uchar *>(cursor->pixels), cursor->width, cursor->height,

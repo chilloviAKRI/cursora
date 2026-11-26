@@ -27,7 +27,7 @@ int main(int argc, char *argv[]) {
     }
     QGuiApplication app(argc, argv);
     app.setApplicationName("cursora");
-    app.setApplicationVersion("0.3.0");
+    app.setApplicationVersion("0.4.0");
     app.setDesktopFileName("cursora");
     app.setWindowIcon(QIcon::fromTheme("cursora"));
     QQuickStyle::setStyle("Material");
@@ -35,9 +35,11 @@ int main(int argc, char *argv[]) {
     app.installTranslator(&translator);
     const int lang = arguments.indexOf("--language");
     if (lang >= 0) translator.setLanguage(arguments.value(lang + 1));
-    if (command == "monochrome-themes") {
+    if (command == "monochrome-themes" || command == "build-omarchy-pack") {
         QString error;
-        const bool ok = monochromeThemes(arguments.value(1), &error);
+        const bool ok = command == "monochrome-themes"
+            ? monochromeThemes(arguments.value(1), &error)
+            : createOmarchyCursorPack(arguments.value(1), &error);
         if (!ok) QTextStream(stderr) << error << '\n';
         return ok ? 0 : 1;
     }
@@ -53,21 +55,19 @@ int main(int argc, char *argv[]) {
         } else if (command == "apply") {
             const int ti = arguments.indexOf("--theme");
             const int si = arguments.indexOf("--size");
-            bool validSize = false;
-            const int size = si < 0 ? 0 : arguments.value(si + 1).toInt(&validSize);
-            if (ti < 0 || arguments.value(ti + 1).isEmpty() || (si >= 0 && (!validSize || size < 16 || size > 128))) {
+            if (si >= 0) {
                 ok = false;
-                result["error"] = "Usage: cursora apply --theme NAME [--size 16..128] [--dry-run] [--json]";
+                result["error"] = "Cursora now uses the size supplied by the cursor pack. Remove --size.";
+            } else if (ti < 0 || arguments.value(ti + 1).isEmpty()) {
+                ok = false;
+                result["error"] = "Usage: cursora apply --theme NAME [--dry-run] [--json]";
             } else {
                 backend.setSelected(arguments.value(ti + 1));
-                if (si >= 0) backend.setCursorSize(size);
                 if (arguments.contains("--dry-run")) {
-                    bool found = false;
-                    for (const auto &item : backend.themes()) if (item.toMap()["id"] == backend.selected()) found = true;
-                    if (!found) { ok = false; result["error"] = "Theme is not installed."; }
+                    const auto plan = backend.plannedFiles();
+                    if (plan.isEmpty()) { ok = false; result["error"] = "Theme is not installed."; }
                     else {
                         QJsonObject files;
-                        const auto plan = backend.plannedFiles();
                         for (auto it = plan.begin(); it != plan.end(); ++it) files[it.key()] = QString::fromUtf8(it.value());
                         result["files"] = files;
                     }
@@ -90,7 +90,7 @@ int main(int argc, char *argv[]) {
             QTextStream(stdout) << "Cursora — cursor packs for Omarchy\n"
                 "cursora open [--language ru|en|da]\n"
                 "cursora list|status [--json]\n"
-                "cursora apply --theme NAME [--size 16..128] [--dry-run] [--json]\n"
+                "cursora apply --theme NAME [--dry-run] [--json]\n"
                 "cursora undo [--json]\ncursora skill install [--json]\n";
             return 0;
         } else { ok = false; result["error"] = "Unknown command. Run cursora --help."; }
@@ -110,8 +110,7 @@ int main(int argc, char *argv[]) {
     engine.load(QUrl("qrc:/Main.qml"));
     if (engine.rootObjects().isEmpty()) return 1;
     if (command == "--screenshot") {
-        backend.setSelected("Cursora-Bibata-Black");
-        backend.setCursorSize(48);
+        backend.setSelected("Cursora-Omarchy-Terminal");
         auto *window = qobject_cast<QQuickWindow *>(engine.rootObjects().first());
         QTimer::singleShot(1200, &app, [window, &app, arguments] {
             const bool ok = window->grabWindow().save(arguments.value(1));

@@ -1,4 +1,5 @@
 #include "backend.h"
+#include "cursorimages.h"
 #include <QCoreApplication>
 #include <QCryptographicHash>
 #include <QDateTime>
@@ -65,7 +66,6 @@ Backend::Backend(const QString &home, const QStringList &roots, bool runtime)
     }
     if (m_active.isEmpty()) m_active = "Adwaita";
     m_selected = m_active;
-    m_size = m_activeSize;
     m_lastBackup = QString::fromUtf8(read(state() + "/cursora/last-backup")).trimmed();
     rescan();
 }
@@ -80,12 +80,12 @@ void Backend::setSelected(const QString &value) {
     emit changed();
 }
 
-void Backend::setCursorSize(int value) {
-    if (value < 16 || value > 128) return;
-    m_sizeEdited = true;
-    if (m_size == value) return;
-    m_size = value;
-    emit changed();
+int Backend::themeSize(const QString &id) const {
+    for (const auto &item : m_themes) {
+        const auto entry = item.toMap();
+        if (entry["id"].toString() == id) return entry["nativeSize"].toInt();
+    }
+    return 0;
 }
 
 void Backend::rescan() {
@@ -99,16 +99,21 @@ void Backend::rescan() {
             const QString id = entry.fileName();
             if (seen.contains(id) || retired.contains(id) || !valid.match(id).hasMatch()) continue;
             const QString path = entry.absoluteFilePath();
-            if (!QFileInfo::exists(path + "/cursors/left_ptr") && !QFileInfo::exists(path + "/cursors/default")) continue;
-            seen.insert(id);
             QSettings index(path + "/index.theme", QSettings::IniFormat);
+            const int preferred = index.value("Icon Theme/X-Cursora-DefaultSize", 24).toInt();
+            int native = nativeCursorSize(path + "/cursors/left_ptr", preferred);
+            if (!native) native = nativeCursorSize(path + "/cursors/default", preferred);
+            if (!native) continue;
+            seen.insert(id);
             const QString name = index.value("Icon Theme/Name", id).toString();
-            themes << QVariantMap{{"id", id}, {"name", name}, {"path", path}, {"builtin", packs.contains(id)}, {"pack", packs.value(id).toObject().toVariantMap()}};
+            themes << QVariantMap{{"id", id}, {"name", name}, {"path", path}, {"nativeSize", native}, {"builtin", packs.contains(id)}, {"pack", packs.value(id).toObject().toVariantMap()}};
         }
     }
     std::sort(themes.begin(), themes.end(), [](const QVariant &a, const QVariant &b) {
         const auto x = a.toMap(), y = b.toMap();
         if (x["builtin"].toBool() != y["builtin"].toBool()) return x["builtin"].toBool();
+        if (x["id"] == "Cursora-Omarchy-Terminal") return y["id"] != x["id"];
+        if (y["id"] == "Cursora-Omarchy-Terminal") return false;
         const auto xFamily = x["pack"].toMap().value("family").toString();
         const auto yFamily = y["pack"].toMap().value("family").toString();
         const int familyOrder = QString::localeAwareCompare(xFamily, yFamily);
@@ -150,6 +155,7 @@ QString Backend::themeDescription(const QString &id) const {
         if (family == "Bibata Original") return tr("Pointed arrow");
         if (family == "Banana") return tr("Curved pointer");
         if (family == "DMZ") return tr("Classic arrow");
+        if (family == "Omarchy Terminal") return tr("Angular arrow and terminal glyphs");
     }
     return tr("Installed cursor pack");
 }
@@ -203,8 +209,10 @@ QByteArray Backend::managedBlock(QByteArray data, const QByteArray &content) {
     return data + begin + '\n' + content + end + '\n';
 }
 
-QMap<QString, QByteArray> Backend::plannedFiles(int cursorSize) const {
+QMap<QString, QByteArray> Backend::plannedFiles() const {
     QMap<QString, QByteArray> files;
+    const int effectiveSize = themeSize(m_selected);
+    if (effectiveSize <= 0) return files;
     const QString main = config() + "/hypr/hyprland.lua";
     QByteArray contents = read(main);
     const QByteArray hook = "require(\"hypr.cursora\")";
@@ -213,7 +221,6 @@ QMap<QString, QByteArray> Backend::plannedFiles(int cursorSize) const {
         contents += "\n-- Cursor preferences managed by Cursora.\n" + hook + '\n';
     }
     files[main] = contents;
-    const int effectiveSize = cursorSize > 0 ? cursorSize : m_size;
     const QString quoted = luaString(m_selected), size = QString::number(effectiveSize);
     files[config() + "/hypr/cursora.lua"] = QString(
         "-- Managed by Cursora. Change the cursor in the application.\n"
@@ -259,10 +266,8 @@ bool Backend::writeFile(const QString &path, const QByteArray &data, QString *er
 
 bool Backend::fail(const QString &message) { m_message = message; m_failed = true; emit changed(); return false; }
 
-bool Backend::applyRuntime(QString *error, const QString &overrideTheme, int overrideSize) {
+bool Backend::applyRuntime(QString *error, const QString &selected, int size) {
     if (!m_runtime) return true;
-    const QString selected = overrideTheme.isEmpty() ? m_selected : overrideTheme;
-    const int size = overrideSize > 0 ? overrideSize : m_size;
     bool ok = false;
     run("hyprctl", {"reload"}, &ok);
     if (!ok) { *error = tr("Hyprland could not reload its configuration."); return false; }
@@ -298,9 +303,8 @@ bool Backend::applyRuntime(QString *error, const QString &overrideTheme, int ove
 }
 
 bool Backend::apply() {
-    bool exists = false;
-    for (const auto &item : m_themes) if (item.toMap()["id"].toString() == m_selected) exists = true;
-    if (!exists) return fail(tr("Select an installed cursor theme."));
+    const int effectiveSize = themeSize(m_selected);
+    if (effectiveSize <= 0) return fail(tr("Select an installed cursor theme."));
     if (m_runtime) {
         if (qEnvironmentVariableIsEmpty("HYPRLAND_INSTANCE_SIGNATURE")) return fail(tr("Open Cursora inside a Hyprland session."));
         if (!QFileInfo::exists(config() + "/hypr/hyprland.lua")) return fail(tr("This utility requires Omarchy with a Lua Hyprland configuration."));
@@ -319,9 +323,7 @@ bool Backend::apply() {
         runtimeSize = run("gsettings", {"get", "org.gnome.desktop.interface", "cursor-size"}, &ok).toInt();
         if (!ok || runtimeSize <= 0) return fail(tr("Cannot read the current cursor size."));
     }
-    // An appearance-only change preserves the current desktop size.
-    const int effectiveSize = m_sizeEdited ? m_size : runtimeSize;
-    const auto files = plannedFiles(effectiveSize);
+    const auto files = plannedFiles();
     const QString backup = state() + "/cursora/backups/" + QDateTime::currentDateTimeUtc().toString("yyyyMMdd-HHmmss-") + QUuid::createUuid().toString(QUuid::Id128).left(8);
     QString error;
     QJsonArray entries;
@@ -355,8 +357,7 @@ bool Backend::apply() {
             : tr(" Recovery needs attention: %1 %2. Backup: %3").arg(restoreError, runtimeError, backup)));
     }
     m_active = m_selected;
-    m_activeSize = m_size = effectiveSize;
-    m_sizeEdited = false;
+    m_activeSize = effectiveSize;
     m_lastBackup = backup;
     m_failed = false;
     m_message = tr("Cursor applied. Some open applications may need to be restarted.");
@@ -396,12 +397,10 @@ bool Backend::undo() {
     QString error;
     if (!restore(m_lastBackup, &error)) return fail(error);
     m_selected = manifest["theme"].toString("Adwaita");
-    m_size = manifest["size"].toInt(24);
     m_active = m_selected;
-    m_activeSize = m_size;
-    m_sizeEdited = false;
+    m_activeSize = manifest["size"].toInt(24);
     // Keep the backup marker on runtime failure, so the user can locate recovery data.
-    if (!applyRuntime(&error, manifest["runtimeTheme"].toString(), manifest["runtimeSize"].toInt()))
+    if (!applyRuntime(&error, manifest["runtimeTheme"].toString(m_active), manifest["runtimeSize"].toInt(m_activeSize)))
         return fail(error + tr(" Backup: %1").arg(m_lastBackup));
     QFile::remove(state() + "/cursora/last-backup");
     m_lastBackup.clear();
@@ -411,7 +410,7 @@ bool Backend::undo() {
     return true;
 }
 
-void Backend::discard() { m_selected = m_active; m_size = m_activeSize; m_sizeEdited = false; emit changed(); }
+void Backend::discard() { m_selected = m_active; emit changed(); }
 void Backend::openThemesDirectory() {
     if (!QDir().mkpath(themesDirectory()) || !QDesktopServices::openUrl(QUrl::fromLocalFile(themesDirectory())))
         fail(tr("Cannot open the themes folder: %1").arg(themesDirectory()));

@@ -59,6 +59,27 @@ for theme, pack in packs.items():
     for shape in ('left_ptr', 'hand2', 'xterm', 'crosshair', 'ew-resize', 'watch'):
         actual_source = compositor_shape_source(theme, shape)
         assert actual_source == theme, f'{theme}/{shape} is overridden by {actual_source}'
+    if 'archive' not in pack:
+        index = configparser.ConfigParser()
+        index.read(path / 'index.theme')
+        native = index['Icon Theme'].getint('X-Cursora-DefaultSize')
+        for cursor in (path / 'cursors').iterdir():
+            if cursor.is_symlink():
+                assert cursor.is_file() and '/' not in str(cursor.readlink()), f'Broken alias: {cursor}'
+                continue
+            images = frames(cursor.read_bytes())
+            assert {meta[0] for meta, _ in images} == {native, native * 2, native * 3, native * 4}
+            for meta, pixels in images:
+                nominal, _, width, height, xhot, yhot, delay = meta
+                assert nominal == width == height and 0 <= xhot < width and 0 <= yhot < height
+                assert any(pixel >> 24 for pixel in pixels), f'Empty image: {cursor}'
+                assert all(((p >> 16) & 255) == ((p >> 8) & 255) == (p & 255) for p in pixels)
+            if cursor.name in ('watch', 'progress'):
+                animation = [(meta[-1], pixels.tobytes()) for meta, pixels in images if meta[0] == native]
+                assert len(animation) == 4 and len(set(animation)) == 4 and all(delay > 0 for delay, _ in animation)
+            checked_files += 1
+            checked_frames += len(images)
+        continue
     if pack['archive'] not in archives:
         archives[pack['archive']] = tarfile.open(root / 'vendor' / pack['archive'])
     archive = archives[pack['archive']]

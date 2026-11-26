@@ -13,7 +13,8 @@ for record in json.loads((vendor / 'sources.json').read_text()):
     path = vendor / record['file']
     if hashlib.sha256(path.read_bytes()).hexdigest() != record['sha256']:
         raise SystemExit(f'Checksum mismatch: {path.name}')
-packs = json.loads((root / 'src/packs.json').read_text())
+packs = {name: pack for name, pack in json.loads((root / 'src/packs.json').read_text()).items()
+         if 'archive' in pack}
 destination = root / 'build/themes'
 if destination.is_symlink():
     raise SystemExit('Refusing a symbolic link at build/themes')

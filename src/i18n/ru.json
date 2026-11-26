@@ -65,10 +65,9 @@
   "Discard": "Сбросить",
   "Restore": "Вернуть",
   "Cannot read the current cursor size.": "Не удалось прочитать текущие настройки курсора.",
-  "Cursor size": "Размер курсора",
-  "%1 px": "%1 пкс",
   "Press Apply to save changes.": "Нажмите «Применить», чтобы сохранить изменения.",
   "Pointed arrow": "Заострённая стрелка",
   "Curved pointer": "Изогнутый указатель",
-  "Classic arrow": "Классическая стрелка"
+  "Classic arrow": "Классическая стрелка",
+  "Angular arrow and terminal glyphs": "Угловатая стрелка и терминальные символы"
 }
