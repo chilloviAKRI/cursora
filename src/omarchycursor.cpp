@@ -54,13 +54,13 @@ void drawOutlinedShape(QPainter &painter, const QPainterPath &path, qreal outlin
 
 QPainterPath linkGlyph() {
     QPainterPath path;
-    // Keep the tilted index finger and bent wrist, with straight facets
-    // around the fingertip, knuckles and thumb to match the main pointer.
-    line(path, {{4.85, 4.25}, {7.0, 2.85}, {11.7, 8.8}, {12.2, 7.4},
-                {13.65, 7.9}, {15, 9.6}, {16.1, 8.75}, {17.05, 9.45},
-                {18.2, 11.2}, {19.45, 10.8}, {21.4, 13.2}, {21.4, 17.0},
-                {18.2, 21.1}, {14.15, 21.1}, {6.6, 17.0}, {5.95, 15.6},
-                {7.5, 14.45}, {10.8, 16}});
+    // The three folded fingers step down toward the little finger as the hand tilts.
+    line(path, {{4.85, 4.25}, {7.0, 2.85}, {11.4, 8.65},
+                {11.65, 6.45}, {13.2, 6.05}, {14.35, 7.05}, {15.1, 9.5},
+                {15.55, 7.45}, {17.1, 7.3}, {18.05, 8.4}, {18.8, 10.6},
+                {19.25, 9.2}, {20.45, 9.4}, {21.4, 11.15}, {21.4, 16.85},
+                {18.0, 21.1}, {12.35, 21.1}, {4.6, 17.95}, {3.25, 15.9},
+                {4.65, 14.55}, {6.45, 14.55}, {9.35, 16.0}});
     path.closeSubpath();
     return path;
 }
@@ -99,10 +99,10 @@ QPainterPath resizeGlyph(const Kind &direction) {
                     {shoulder, 5.2}, {shoulder, 2.25}, {tail, 2.25}});
         path.closeSubpath();
         if (diagonal) {
-            // A corner bracket reads as a window corner at a glance.
+            // Line up the ends of the corner bracket with the back of the arrow.
             QPainterPath bracket;
-            line(bracket, {{9.85, -1.75}, {9.85, 9.85}, {-1.75, 9.85},
-                           {-1.75, 7.25}, {7.25, 7.25}, {7.25, -1.75}});
+            line(bracket, {{9.85, -9.85}, {9.85, 9.85}, {-9.85, 9.85},
+                           {-9.85, 7.25}, {7.25, 7.25}, {7.25, -9.85}});
             bracket.closeSubpath();
             QTransform corner;
             corner.translate(12, 12);
@@ -111,7 +111,10 @@ QPainterPath resizeGlyph(const Kind &direction) {
             glyph.addPath(corner.map(bracket));
             return glyph;
         }
-        path.addRect(QRectF(7.75, -8.8, 2.1, 17.6));
+        // Bend both ends of the stop back around the arrowhead.
+        line(path, {{-2.4, -9.85}, {9.85, -7.5}, {9.85, 7.5}, {-2.4, 9.85},
+                    {-2.9, 7.85}, {7.75, 5.95}, {7.75, -5.95}, {-2.9, -7.85}});
+        path.closeSubpath();
     }
     return transform.map(path);
 }
@@ -146,8 +149,9 @@ QImage render(const Kind &kind, int size, int frame) {
         if (link) {
             // Short creases make the bent fingers readable at the native size.
             QPainterPath creases;
-            line(creases, {{12.15, 9.9}, {13.1, 10.55}, {13.65, 11.55}});
-            line(creases, {{15.5, 11.1}, {16.3, 11.75}, {16.9, 12.7}});
+            line(creases, {{11.65, 8.8}, {12.55, 9.7}, {13.15, 11.65}});
+            line(creases, {{15.3, 9.6}, {16.0, 10.45}, {16.45, 12.35}});
+            line(creases, {{18.9, 10.65}, {19.45, 11.5}, {19.65, 13.1}});
             painter.strokePath(creases, QPen(Paper, .9, Qt::SolidLine, Qt::SquareCap, Qt::MiterJoin));
         }
         painter.end();
