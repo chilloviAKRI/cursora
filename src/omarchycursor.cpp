@@ -46,9 +46,9 @@ void drawGlyph(QPainter &painter, const QPainterPath &path, bool filled = false)
     painter.drawPath(path);
 }
 
-void drawOutlinedShape(QPainter &painter, const QPainterPath &path) {
+void drawOutlinedShape(QPainter &painter, const QPainterPath &path, qreal outlineWidth) {
     painter.setRenderHint(QPainter::Antialiasing);
-    painter.strokePath(path, QPen(Paper, 2.0, Qt::SolidLine, Qt::RoundCap, Qt::RoundJoin));
+    painter.strokePath(path, QPen(Paper, outlineWidth, Qt::SolidLine, Qt::RoundCap, Qt::RoundJoin));
     painter.fillPath(path, Ink);
 }
 
@@ -65,8 +65,8 @@ QPainterPath linkGlyph() {
     path.quadTo(19.2, 10.7, 20, 11.7);
     path.lineTo(21, 13.3);
     path.quadTo(22.4, 16.4, 20, 18.8);
-    path.lineTo(16.4, 21.6);
-    path.quadTo(14.6, 21.7, 13.3, 20.9);
+    path.lineTo(16.4, 21.1);
+    path.quadTo(14.6, 21.3, 13.3, 20.5);
     path.lineTo(6.9, 17.1);
     path.quadTo(5.7, 16.3, 6.3, 15.3);
     path.quadTo(6.9, 14.2, 8.2, 14.7);
@@ -81,27 +81,48 @@ QPainterPath resizeGlyph(const Kind &direction) {
         {"nw", 225}, {"n", 270}, {"ne", 315}, {"ew", 0},
         {"ns", 90}, {"nwse", 45}, {"nesw", 135}, {"col", 0}, {"row", 90}
     };
-    QPainterPath path;
-    if (direction == "col" || direction == "row") {
-        // Column and row dividers have a fixed rule between the two tips.
-        line(path, {{3, -1.35}, {5.5, -1.35}, {5.5, -4}, {9.5, 0},
-                    {5.5, 4}, {5.5, 1.35}, {3, 1.35}});
-        path.closeSubpath();
-        path.addPath(QTransform::fromScale(-1, 1).map(path));
-        path.addRect(QRectF(-.85, -8.5, 1.7, 17));
-    } else if (direction.size() > 2 || direction == "ew" || direction == "ns") {
-        line(path, {{-9, 0}, {-4.7, -4}, {-4.7, -1.35}, {4.7, -1.35}, {4.7, -4},
-                    {9, 0}, {4.7, 4}, {4.7, 1.35}, {-4.7, 1.35}, {-4.7, 4}});
-        path.closeSubpath();
-    } else {
-        line(path, {{-8, -1.35}, {.8, -1.35}, {.8, -4}, {5.3, 0},
-                    {.8, 4}, {.8, 1.35}, {-8, 1.35}});
-        path.closeSubpath();
-        path.addRect(QRectF(7.9, -4.3, 1.5, 8.6));
-    }
+    const int angle = angles.value(direction);
+    const bool diagonal = angle % 90 != 0;
     QTransform transform;
     transform.translate(12, 12);
-    transform.rotate(angles.value(direction));
+    transform.rotate(angle);
+    QPainterPath path;
+    if (direction == "col" || direction == "row") {
+        line(path, {{3.6, -2.15}, {5.1, -2.15}, {5.1, -5.2}, {9.85, 0},
+                    {5.1, 5.2}, {5.1, 2.15}, {3.6, 2.15}});
+        path.closeSubpath();
+        path.addPath(QTransform::fromScale(-1, 1).map(path));
+        path.addRect(QRectF(-1.25, -9.85, 2.5, 19.7));
+    } else if (direction.size() > 2 || direction == "ew" || direction == "ns") {
+        // Diagonals need a longer axis to fill a similar amount of the square.
+        const qreal tip = diagonal ? 11.9 : 9.85;
+        const qreal shoulder = diagonal ? 5.5 : 4.35;
+        line(path, {{-tip, 0}, {-shoulder, -5.25}, {-shoulder, -2.35},
+                    {shoulder, -2.35}, {shoulder, -5.25}, {tip, 0},
+                    {shoulder, 5.25}, {shoulder, 2.35}, {-shoulder, 2.35}, {-shoulder, 5.25}});
+        path.closeSubpath();
+    } else {
+        const qreal tail = diagonal ? -11 : -9.85;
+        const qreal tip = diagonal ? 7.8 : 5.5;
+        const qreal shoulder = diagonal ? 1.35 : -.25;
+        line(path, {{tail, -2.25}, {shoulder, -2.25}, {shoulder, -5.2}, {tip, 0},
+                    {shoulder, 5.2}, {shoulder, 2.25}, {tail, 2.25}});
+        path.closeSubpath();
+        if (diagonal) {
+            // A corner bracket reads as a window corner at a glance.
+            QPainterPath bracket;
+            line(bracket, {{9.85, 2.6}, {9.85, 9.85}, {2.6, 9.85},
+                           {2.6, 7.25}, {7.25, 7.25}, {7.25, 2.6}});
+            bracket.closeSubpath();
+            QTransform corner;
+            corner.translate(12, 12);
+            corner.rotate(angle - 45);
+            QPainterPath glyph = transform.map(path);
+            glyph.addPath(corner.map(bracket));
+            return glyph;
+        }
+        path.addRect(QRectF(7.75, -6.2, 2.1, 12.4));
+    }
     return transform.map(path);
 }
 
@@ -128,8 +149,9 @@ QImage render(const Kind &kind, int size, int frame) {
         painter.end();
         return image;
     } else if (kind == "hand2" || kind.endsWith("-resize")) {
-        drawOutlinedShape(painter, kind == "hand2" ? linkGlyph() : resizeGlyph(kind.chopped(7)));
-        if (kind == "hand2") {
+        const bool link = kind == "hand2";
+        drawOutlinedShape(painter, link ? linkGlyph() : resizeGlyph(kind.chopped(7)), link ? 3.2 : 2.2);
+        if (link) {
             // Short creases make the bent fingers readable at the native size.
             QPainterPath creases;
             creases.moveTo(12.2, 10);

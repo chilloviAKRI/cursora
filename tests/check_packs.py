@@ -85,8 +85,12 @@ for theme, pack in packs.items():
                     assert all(((p >> 16) & 255) == ((p >> 8) & 255) == (p & 255) for p in pixels)
                     if cursor.name == 'hand2':
                         assert pixels[yhot * width + xhot] >> 24 > 0, 'Link hotspot misses the fingertip'
-                    assert not any(pixels[:width]) and not any(pixels[-width:]), f'Clipped glyph: {cursor}'
-                    assert not any(pixels[::width]) and not any(pixels[width-1::width]), f'Clipped glyph: {cursor}'
+                    elif nominal == native:
+                        coverage = sum((p >> 24) >= 128 for p in pixels)
+                        assert coverage * 100 >= width * height * 28, f'Resize glyph is too small: {cursor}'
+                    # Subpixel coverage may reach the edge, but solid artwork must fit.
+                    edges = pixels[:width] + pixels[-width:] + pixels[::width] + pixels[width-1::width]
+                    assert max(p >> 24 for p in edges) <= 64, f'Clipped glyph: {cursor}'
                 else:
                     assert set(pixels) <= {0x00000000, 0xff0f0f0f, 0xfff7f7f7}, f'Unexpected color in {cursor} at {nominal}px'
             if cursor.name in ('watch', 'progress'):
