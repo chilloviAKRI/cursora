@@ -48,7 +48,6 @@ void drawGlyph(QPainter &painter, const QPainterPath &path, bool filled = false)
 
 void drawOutlinedShape(QPainter &painter, const QPainterPath &path, qreal outlineWidth,
                        Qt::PenJoinStyle join) {
-    painter.setRenderHint(QPainter::Antialiasing);
     painter.strokePath(path, QPen(Paper, outlineWidth, Qt::SolidLine, Qt::SquareCap, join));
     painter.fillPath(path, Ink);
 }
@@ -142,6 +141,7 @@ QImage render(const Kind &kind, int size, int frame) {
         return image;
     } else if (kind == "hand2" || kind.endsWith("-resize")) {
         const bool link = kind == "hand2";
+        painter.setRenderHint(QPainter::Antialiasing, !link);
         drawOutlinedShape(painter, link ? linkGlyph() : resizeGlyph(kind.chopped(7)),
                           link ? 3.2 : 2.2, link ? Qt::BevelJoin : Qt::RoundJoin);
         if (link) {
