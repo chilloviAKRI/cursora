@@ -150,13 +150,21 @@ private slots:
         QVERIFY(!QFileInfo::exists(config + "/gtk-3.0/settings.ini"));
         QVERIFY(!QFileInfo::exists(config + "/hypr/cursora.lua"));
     }
-    void sizeIsReadOnlyAndDiscardResetsSelection() {
+    void sizeOnlyChangePersistsAndUndoRestoresSize() {
         QTemporaryDir dir;
-        Backend backend(dir.path(), {dir.path() + "/themes"}, false);
-        const auto property = backend.metaObject()->property(backend.metaObject()->indexOfProperty("cursorSize"));
-        QVERIFY(!property.isWritable());
-        backend.setSelected("Example"); QVERIFY(backend.dirty());
+        const QStringList roots{dir.path() + "/themes"};
+        theme(roots.first(), "Adwaita");
+        Backend backend(dir.path(), roots, false);
+        backend.setCursorSize(48); QVERIFY(backend.dirty());
         backend.discard(); QVERIFY(!backend.dirty()); QCOMPARE(backend.cursorSize(), 24);
+        backend.setCursorSize(48);
+        QVERIFY(backend.apply());
+        QCOMPARE(backend.active(), QString("Adwaita"));
+        QVERIFY(!backend.dirty());
+        Backend reopened(dir.path(), roots, false);
+        QCOMPARE(reopened.cursorSize(), 48);
+        QVERIFY(reopened.undo());
+        QCOMPARE(reopened.cursorSize(), 24);
     }
     void runtimeApplyRetainsSizeChangedOutsideTheApp() {
         QTemporaryDir dir;
@@ -246,14 +254,17 @@ private slots:
         QVERIFY(list); list->forceActiveFocus();
         QTest::keyClick(window, Qt::Key_Up);
         QVERIFY(backend.selected() != "Adwaita");
-        QVERIFY(!window->findChild<QQuickItem *>("sizeBox"));
-        QVERIFY(!window->findChild<QQuickItem *>("sizeSlider"));
-        QCOMPARE(backend.cursorSize(), 24);
+        auto *slider = window->findChild<QQuickItem *>("sizeSlider");
+        QVERIFY(slider);
+        slider->forceActiveFocus();
+        QTest::keyClick(window, Qt::Key_Right);
+        QCOMPARE(backend.cursorSize(), 25);
         auto *apply = window->findChild<QQuickItem *>("applyButton");
         QVERIFY(apply);
         const QPointF buttonPoint = apply->mapToScene(QPointF(apply->width() / 2, apply->height() / 2));
         QTest::mouseClick(window, Qt::LeftButton, Qt::NoModifier, buttonPoint.toPoint());
         QTRY_VERIFY(backend.canUndo()); QVERIFY(!backend.dirty());
+        QCOMPARE(Backend(dir.path(), {}, false).cursorSize(), 25);
         QVERIFY(write(language, "da\n")); QTRY_COMPARE(translator.language(), QString("da"));
         QCOMPARE(apply->property("text").toString(), QString("Anvend"));
         const QImage shot = window->grabWindow(); QVERIFY(!shot.isNull());

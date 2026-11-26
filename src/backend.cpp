@@ -53,7 +53,7 @@ Backend::Backend(const QString &home, const QStringList &roots, bool runtime)
     const auto saved = QJsonDocument::fromJson(read(config() + "/cursora/settings.json")).object();
     if (!saved.isEmpty()) {
         m_active = saved.value("theme").toString();
-        m_activeSize = qBound(16, saved.value("size").toInt(24), 96);
+        m_activeSize = qMax(1, saved.value("size").toInt(24));
     }
     if (runtime) {
         bool ok = false;
@@ -80,6 +80,14 @@ void Backend::setSelected(const QString &value) {
     emit changed();
 }
 
+void Backend::setCursorSize(int value) {
+    if (value < 16 || value > 128) return;
+    m_sizeEdited = true;
+    if (m_size == value) return;
+    m_size = value;
+    emit changed();
+}
+
 void Backend::rescan() {
     QVariantList themes;
     QSet<QString> seen;
@@ -101,6 +109,10 @@ void Backend::rescan() {
     std::sort(themes.begin(), themes.end(), [](const QVariant &a, const QVariant &b) {
         const auto x = a.toMap(), y = b.toMap();
         if (x["builtin"].toBool() != y["builtin"].toBool()) return x["builtin"].toBool();
+        const auto xFamily = x["pack"].toMap().value("family").toString();
+        const auto yFamily = y["pack"].toMap().value("family").toString();
+        const int familyOrder = QString::localeAwareCompare(xFamily, yFamily);
+        if (familyOrder != 0) return familyOrder < 0;
         return QString::localeAwareCompare(x["name"].toString(), y["name"].toString()) < 0;
     });
     m_themes = themes;
@@ -121,6 +133,7 @@ QString Backend::themeTitle(const QString &id) const {
         if (theme["id"].toString() != id) continue;
         const auto pack = theme["pack"].toMap();
         if (pack.isEmpty()) return theme["name"].toString();
+        if (pack["tone"].toString().isEmpty()) return pack["family"].toString();
         return tr("%1 · %2").arg(pack["family"].toString(), pack["tone"].toString() == "black" ? tr("Black") : tr("White"));
     }
     return id;
@@ -134,6 +147,9 @@ QString Backend::themeDescription(const QString &id) const {
         if (family == "Bibata") return tr("Soft, rounded shapes");
         if (family == "Phinger") return tr("Compact pointer, expressive hands");
         if (family == "BreezeX") return tr("Sharp, angular shapes");
+        if (family == "Bibata Original") return tr("Pointed arrow");
+        if (family == "Banana") return tr("Curved pointer");
+        if (family == "DMZ") return tr("Classic arrow");
     }
     return tr("Installed cursor pack");
 }
@@ -187,7 +203,7 @@ QByteArray Backend::managedBlock(QByteArray data, const QByteArray &content) {
     return data + begin + '\n' + content + end + '\n';
 }
 
-QMap<QString, QByteArray> Backend::plannedFiles() const {
+QMap<QString, QByteArray> Backend::plannedFiles(int cursorSize) const {
     QMap<QString, QByteArray> files;
     const QString main = config() + "/hypr/hyprland.lua";
     QByteArray contents = read(main);
@@ -197,7 +213,8 @@ QMap<QString, QByteArray> Backend::plannedFiles() const {
         contents += "\n-- Cursor preferences managed by Cursora.\n" + hook + '\n';
     }
     files[main] = contents;
-    const QString quoted = luaString(m_selected), size = QString::number(m_size);
+    const int effectiveSize = cursorSize > 0 ? cursorSize : m_size;
+    const QString quoted = luaString(m_selected), size = QString::number(effectiveSize);
     files[config() + "/hypr/cursora.lua"] = QString(
         "-- Managed by Cursora. Change the cursor in the application.\n"
         "hl.env(\"XCURSOR_THEME\", %1)\nhl.env(\"XCURSOR_SIZE\", \"%2\")\n"
@@ -214,7 +231,7 @@ QMap<QString, QByteArray> Backend::plannedFiles() const {
     const QString env = config() + "/uwsm/env", hyprenv = config() + "/uwsm/env-hyprland";
     files[env] = managedBlock(read(env), QString("export XCURSOR_THEME='%1'\nexport XCURSOR_SIZE='%2'\n").arg(m_selected, size).toUtf8());
     files[hyprenv] = managedBlock(read(hyprenv), QString("export HYPRCURSOR_THEME='%1'\nexport HYPRCURSOR_SIZE='%2'\n").arg(m_selected, size).toUtf8());
-    files[config() + "/cursora/settings.json"] = QJsonDocument(QJsonObject{{"theme", m_selected}, {"size", m_size}}).toJson();
+    files[config() + "/cursora/settings.json"] = QJsonDocument(QJsonObject{{"theme", m_selected}, {"size", effectiveSize}}).toJson();
     return files;
 }
 
@@ -293,15 +310,18 @@ bool Backend::apply() {
         const QString errors = run("hyprctl", {"configerrors"}, &ok);
         if (!ok || !errors.isEmpty()) return fail(tr("Fix the existing Hyprland configuration errors first: %1").arg(errors));
     }
-    // The utility changes appearance only. Re-read the live size so an external
-    // size change made while this window was open is preserved as well.
+    QString runtimeTheme = m_active;
+    int runtimeSize = m_activeSize;
     if (m_runtime) {
         bool ok = false;
-        const int size = run("gsettings", {"get", "org.gnome.desktop.interface", "cursor-size"}, &ok).toInt();
-        if (!ok || size <= 0) return fail(tr("Cannot read the current cursor size."));
-        m_size = size;
+        runtimeTheme = unquote(run("gsettings", {"get", "org.gnome.desktop.interface", "cursor-theme"}, &ok));
+        if (!ok) return fail(tr("Cannot update desktop cursor settings: %1").arg(runtimeTheme));
+        runtimeSize = run("gsettings", {"get", "org.gnome.desktop.interface", "cursor-size"}, &ok).toInt();
+        if (!ok || runtimeSize <= 0) return fail(tr("Cannot read the current cursor size."));
     }
-    const auto files = plannedFiles();
+    // An appearance-only change preserves the current desktop size.
+    const int effectiveSize = m_sizeEdited ? m_size : runtimeSize;
+    const auto files = plannedFiles(effectiveSize);
     const QString backup = state() + "/cursora/backups/" + QDateTime::currentDateTimeUtc().toString("yyyyMMdd-HHmmss-") + QUuid::createUuid().toString(QUuid::Id128).left(8);
     QString error;
     QJsonArray entries;
@@ -314,17 +334,8 @@ bool Backend::apply() {
         const QByteArray original = existed ? old.readAll() : QByteArray();
         entries.append(QJsonObject{{"path", it.key()}, {"existed", existed}, {"original", QString::fromLatin1(original.toBase64())}, {"after", hash(it.value())}});
     }
-    QString runtimeTheme = m_active;
-    int runtimeSize = m_activeSize;
-    if (m_runtime) {
-        bool ok = false;
-        runtimeTheme = unquote(run("gsettings", {"get", "org.gnome.desktop.interface", "cursor-theme"}, &ok));
-        if (!ok) return fail(tr("Cannot update desktop cursor settings: %1").arg(runtimeTheme));
-        const QString value = run("gsettings", {"get", "org.gnome.desktop.interface", "cursor-size"}, &ok);
-        runtimeSize = value.toInt();
-        if (!ok || runtimeSize <= 0) return fail(tr("Cannot update desktop cursor settings: %1").arg(value));
-    }
-    const QJsonObject manifest{{"files", entries}, {"theme", m_active}, {"size", m_activeSize},
+    const QString previousTheme = runtimeTheme == "default" && m_active == "Adwaita" ? m_active : runtimeTheme;
+    const QJsonObject manifest{{"files", entries}, {"theme", previousTheme}, {"size", runtimeSize},
         {"runtimeTheme", runtimeTheme}, {"runtimeSize", runtimeSize}};
     if (!writeFile(backup + "/manifest.json", QJsonDocument(manifest).toJson(), &error)) return fail(error);
     QFile::setPermissions(backup, QFile::ReadOwner | QFile::WriteOwner | QFile::ExeOwner);
@@ -333,24 +344,19 @@ bool Backend::apply() {
     for (auto it = files.begin(); it != files.end(); ++it) {
         if (!writeFile(it.key(), it.value(), &error)) { success = false; break; }
     }
-    if (success) success = applyRuntime(&error);
+    if (success) success = applyRuntime(&error, m_selected, effectiveSize);
     if (success) success = writeFile(state() + "/cursora/last-backup", backup.toUtf8(), &error);
     if (!success) {
-        const QString requested = m_selected;
-        const int size = m_size;
         QString restoreError;
         const bool restored = restore(backup, &restoreError, false);
-        m_selected = m_active;
-        m_size = m_activeSize;
         QString runtimeError;
         const bool runtimeRestored = applyRuntime(&runtimeError, runtimeTheme, runtimeSize);
-        m_selected = requested;
-        m_size = size;
         return fail(error + (restored && runtimeRestored ? tr(" Previous settings restored.")
             : tr(" Recovery needs attention: %1 %2. Backup: %3").arg(restoreError, runtimeError, backup)));
     }
     m_active = m_selected;
-    m_activeSize = m_size;
+    m_activeSize = m_size = effectiveSize;
+    m_sizeEdited = false;
     m_lastBackup = backup;
     m_failed = false;
     m_message = tr("Cursor applied. Some open applications may need to be restarted.");
@@ -393,6 +399,7 @@ bool Backend::undo() {
     m_size = manifest["size"].toInt(24);
     m_active = m_selected;
     m_activeSize = m_size;
+    m_sizeEdited = false;
     // Keep the backup marker on runtime failure, so the user can locate recovery data.
     if (!applyRuntime(&error, manifest["runtimeTheme"].toString(), manifest["runtimeSize"].toInt()))
         return fail(error + tr(" Backup: %1").arg(m_lastBackup));
@@ -404,7 +411,7 @@ bool Backend::undo() {
     return true;
 }
 
-void Backend::discard() { m_selected = m_active; m_size = m_activeSize; emit changed(); }
+void Backend::discard() { m_selected = m_active; m_size = m_activeSize; m_sizeEdited = false; emit changed(); }
 void Backend::openThemesDirectory() {
     if (!QDir().mkpath(themesDirectory()) || !QDesktopServices::openUrl(QUrl::fromLocalFile(themesDirectory())))
         fail(tr("Cannot open the themes folder: %1").arg(themesDirectory()));

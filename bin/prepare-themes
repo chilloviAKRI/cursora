@@ -26,25 +26,44 @@ with tempfile.TemporaryDirectory(prefix='cursor-packs-', dir=root / 'build') as 
         path = Path(temporary) / filename
         path.mkdir()
         with tarfile.open(vendor / filename) as archive:
-            archive.extractall(path, filter='data')
+            roots = [p['member'] + '/' for p in packs.values() if p['archive'] == filename]
+            members = (m for m in archive if any(m.name.removeprefix('./').startswith(r) for r in roots)) if roots else None
+            archive.extractall(path, members=members, filter='data')
         extracted[filename] = path
     for name, pack in packs.items():
         original = extracted[pack['archive']] / pack['member']
         target = destination / name
         # Preserve aliases rather than expanding them into duplicate cursor data.
         shutil.copytree(original, target, symlinks=True)
+        title = ' '.join(filter(None, (pack['family'], pack.get('tone', '').title())))
         (target / 'index.theme').write_text(
-            f'[Icon Theme]\nName={pack["family"]} {pack["tone"].title()}\n'
+            f'[Icon Theme]\nName={title}\n'
             'Comment=Monochrome edition for Cursora\n')
         # Hyprland 0.56 collects inherited cursor directories in a sorted set,
         # which can give Adwaita priority over this theme. The packs contain
         # their own shapes and aliases, so keep them self-contained.
         source = extracted[pack['source']] / pack['sourceRoot']
-        shutil.copyfile(source / 'LICENSE', target / 'COPYING')
+        shutil.copyfile(source / pack.get('licenseFile', 'LICENSE'), target / 'COPYING')
+        if pack['family'] == 'DMZ':
+            # DMZ predates CSS cursor names. Map those names to its X11 shapes.
+            aliases = {
+                'default': 'left_ptr', 'pointer': 'hand2', 'text': 'xterm',
+                'progress': 'left_ptr_watch', 'wait': 'watch', 'not-allowed': 'crossed_circle',
+                'grab': 'hand1', 'all-scroll': 'move', 'ew-resize': 'sb_h_double_arrow',
+                'ns-resize': 'sb_v_double_arrow', 'nwse-resize': 'bd_double_arrow',
+                'nesw-resize': 'fd_double_arrow', 'col-resize': 'sb_h_double_arrow',
+                'row-resize': 'sb_v_double_arrow', 'n-resize': 'top_side',
+                's-resize': 'bottom_side', 'w-resize': 'left_side', 'e-resize': 'right_side',
+                'nw-resize': 'top_left_corner', 'ne-resize': 'top_right_corner',
+                'sw-resize': 'bottom_left_corner', 'se-resize': 'bottom_right_corner',
+                'alias': 'link', 'no-drop': 'crossed_circle',
+            }
+            for alias, shape in aliases.items():
+                (target / 'cursors' / alias).symlink_to(shape)
         (target / 'NOTICE').write_text(
             f'{pack["family"]} {pack["version"]}: {pack["url"]}\n'
             f'License: {pack["license"]}. See COPYING and the upstream source archive.\n'
-            'Cursora modifications (2026): grayscale status indicators and renamed theme.\n'
+            'Cursora modifications (2026): convert cursor pixels to grayscale, rename theme and add aliases where needed.\n'
             'All original shapes, sizes, hotspots, animation frames and timings are retained.\n'
             'Sources and preparation tools: /usr/share/cursora/sources/\n')
 print(f'Prepared {len(packs)} monochrome cursor themes')

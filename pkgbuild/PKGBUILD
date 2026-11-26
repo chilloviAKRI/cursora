@@ -1,9 +1,9 @@
 pkgname=cursora
-pkgver=0.2.1
+pkgver=0.3.0
 pkgrel=1
 pkgdesc='Monochrome cursor pack picker for Omarchy'
 arch=('x86_64' 'aarch64')
-license=('MIT' 'GPL-3.0-only' 'CC-BY-SA-4.0')
+license=('MIT' 'GPL-3.0-only' 'CC-BY-SA-4.0' 'CC-BY-SA-3.0')
 depends=('qt6-base' 'qt6-declarative' 'qt6-wayland' 'qt6-svg' 'libxcursor' 'glib2' 'hyprland' 'dbus' 'adwaita-cursors')
 makedepends=('gcc' 'make' 'python')
 source=()
@@ -22,6 +22,6 @@ package() {
   install -d "$pkgdir/usr/share/icons"
   cp -rP build/themes/Cursora-* "$pkgdir/usr/share/icons/"
   install -d "$pkgdir/usr/share/cursora/sources"
-  cp vendor/*-source.tar.gz vendor/sources.json "$pkgdir/usr/share/cursora/sources/"
+  cp vendor/*-source.tar.* vendor/sources.json "$pkgdir/usr/share/cursora/sources/"
   cp src/cursorimages.cpp bin/prepare-themes src/packs.json "$pkgdir/usr/share/cursora/sources/"
 }

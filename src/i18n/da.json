@@ -33,7 +33,6 @@
   "Cross": "Kryds",
   "Resize": "Skalér",
   "Wait": "Vent",
-  "Pack selected. Press Apply.": "Pakke valgt. Tryk på Anvend.",
   "● Active pack": "● Aktiv pakke",
   "↑↓ select   Space apply   Ctrl+Z undo   ? help": "↑↓ vælg   Space anvend   Ctrl+Z fortryd   ? hjælp",
   "Add a cursor pack": "Tilføj markørpakke",
@@ -42,5 +41,11 @@
   "Cancel": "Annuller",
   "Discard": "Kassér",
   "Restore": "Gendan",
-  "Cannot read the current cursor size.": "Kan ikke læse markørindstillingerne."
+  "Cannot read the current cursor size.": "Kan ikke læse markørindstillingerne.",
+  "Cursor size": "Markørstørrelse",
+  "%1 px": "%1 px",
+  "Press Apply to save changes.": "Tryk på Anvend for at gemme ændringerne.",
+  "Pointed arrow": "Spids pil",
+  "Curved pointer": "Buet markør",
+  "Classic arrow": "Klassisk pil"
 }

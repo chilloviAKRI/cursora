@@ -46,5 +46,42 @@
     "url": "https://codeload.github.com/phisch/phinger-cursors/tar.gz/refs/tags/v2.2",
     "sha256": "2f2a081ebd219d43af13f75d80563c617781196ffc4de32e7668b80a064eca62",
     "bytes": 1022978
+  },
+  {
+    "file": "Bibata-Original-Classic.tar.xz",
+    "url": "https://github.com/ful1e5/Bibata_Cursor/releases/download/v2.0.7/Bibata-Original-Classic.tar.xz",
+    "sha256": "158b2e7e1b7f6d0eec1af80a93172960dd083b652fef7589575ee984673cc468",
+    "bytes": 1871780
+  },
+  {
+    "file": "Bibata-Original-Ice.tar.xz",
+    "url": "https://github.com/ful1e5/Bibata_Cursor/releases/download/v2.0.7/Bibata-Original-Ice.tar.xz",
+    "sha256": "c96ec7515179cadcefa30f7aefd449830e4e0ab878ee13afbc96aa5906692916",
+    "bytes": 1794192
+  },
+  {
+    "file": "Banana.tar.xz",
+    "url": "https://github.com/ful1e5/banana-cursor/releases/download/v2.0.0/Banana.tar.xz",
+    "sha256": "9d2c4003315b3fc39b47c52dbfd6211d499db154b0fbb1c3c4dd9c0023561bf0",
+    "bytes": 3575776
+  },
+  {
+    "file": "Banana-source.tar.gz",
+    "url": "https://codeload.github.com/ful1e5/banana-cursor/tar.gz/refs/tags/v2.0.0",
+    "sha256": "3dd5385dd3119f69b4749eb27499ae9bf7a1e2b7794426bdedbddb011df43352",
+    "bytes": 503433
+  },
+  {
+    "file": "DMZ-source.tar.xz",
+    "url": "https://deb.debian.org/debian/pool/main/d/dmz-cursor-theme/dmz-cursor-theme_0.4.5.2.tar.xz",
+    "sha256": "75ecbc5ddb1f8295472ca9f8e048f8d799a3102debc87020009bb11240110e4e",
+    "bytes": 947776
+  },
+  {
+    "file": "DMZ.tar.xz",
+    "url": "https://deb.debian.org/debian/pool/main/d/dmz-cursor-theme/dmz-cursor-theme_0.4.5.2_all.deb",
+    "sha256": "11f325bcbf2b6c4a0cf1b6e4fa6ffa75fcca5bfa1191b611601d276eff72df70",
+    "bytes": 188196,
+    "arMember": "data.tar.xz"
   }
 ]

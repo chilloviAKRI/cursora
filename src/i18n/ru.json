@@ -56,7 +56,6 @@
   "Cross": "Крест",
   "Resize": "Масштаб",
   "Wait": "Ожидание",
-  "Pack selected. Press Apply.": "Пак выбран. Нажмите «Применить».",
   "● Active pack": "● Активный пак",
   "↑↓ select   Space apply   Ctrl+Z undo   ? help": "↑↓ выбор   Space применить   Ctrl+Z вернуть   ? помощь",
   "Add a cursor pack": "Добавить пак курсоров",
@@ -65,5 +64,11 @@
   "Cancel": "Отмена",
   "Discard": "Сбросить",
   "Restore": "Вернуть",
-  "Cannot read the current cursor size.": "Не удалось прочитать текущие настройки курсора."
+  "Cannot read the current cursor size.": "Не удалось прочитать текущие настройки курсора.",
+  "Cursor size": "Размер курсора",
+  "%1 px": "%1 пкс",
+  "Press Apply to save changes.": "Нажмите «Применить», чтобы сохранить изменения.",
+  "Pointed arrow": "Заострённая стрелка",
+  "Curved pointer": "Изогнутый указатель",
+  "Classic arrow": "Классическая стрелка"
 }

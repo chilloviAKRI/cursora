@@ -87,13 +87,16 @@ for theme, pack in packs.items():
         checked_files += 1
 
 # Distinct source packs must also produce distinct pointer silhouettes.
-silhouettes = []
-for family in ('Bibata', 'BreezeX', 'Phinger'):
-    path = root / 'build/themes' / f'Cursora-{family}-Black/cursors/left_ptr'
+silhouettes = {}
+for theme, pack in packs.items():
+    family = pack['family']
+    if family in silhouettes:
+        continue
+    path = root / 'build/themes' / theme / 'cursors/left_ptr'
     values = frames(path.read_bytes())
     meta, pixels = min(values, key=lambda f: abs(f[0][0] - 48))
-    silhouettes.append((meta[:4], bytes(p >> 24 for p in pixels)))
-assert len(set(silhouettes)) == 3, 'Cursor families do not differ in shape'
+    silhouettes[family] = (meta[:4], bytes(p >> 24 for p in pixels))
+assert len(set(silhouettes.values())) == len(silhouettes), 'Cursor families do not differ in shape'
 for archive in archives.values():
     archive.close()
 print(f'Validated {len(packs)} packs, {checked_files} cursor files, {checked_frames} frames: monochrome; sizes, hotspots, timings and alpha retained.')

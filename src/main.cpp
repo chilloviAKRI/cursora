@@ -27,7 +27,7 @@ int main(int argc, char *argv[]) {
     }
     QGuiApplication app(argc, argv);
     app.setApplicationName("cursora");
-    app.setApplicationVersion("0.2.1");
+    app.setApplicationVersion("0.3.0");
     app.setDesktopFileName("cursora");
     app.setWindowIcon(QIcon::fromTheme("cursora"));
     QQuickStyle::setStyle("Material");
@@ -52,11 +52,15 @@ int main(int argc, char *argv[]) {
             result = {{"theme", backend.active()}, {"size", backend.cursorSize()}, {"canUndo", backend.canUndo()}};
         } else if (command == "apply") {
             const int ti = arguments.indexOf("--theme");
-            if (ti < 0 || arguments.value(ti + 1).isEmpty() || arguments.contains("--size")) {
+            const int si = arguments.indexOf("--size");
+            bool validSize = false;
+            const int size = si < 0 ? 0 : arguments.value(si + 1).toInt(&validSize);
+            if (ti < 0 || arguments.value(ti + 1).isEmpty() || (si >= 0 && (!validSize || size < 16 || size > 128))) {
                 ok = false;
-                result["error"] = "Usage: cursora apply --theme NAME [--dry-run] [--json]";
+                result["error"] = "Usage: cursora apply --theme NAME [--size 16..128] [--dry-run] [--json]";
             } else {
                 backend.setSelected(arguments.value(ti + 1));
+                if (si >= 0) backend.setCursorSize(size);
                 if (arguments.contains("--dry-run")) {
                     bool found = false;
                     for (const auto &item : backend.themes()) if (item.toMap()["id"] == backend.selected()) found = true;
@@ -86,7 +90,7 @@ int main(int argc, char *argv[]) {
             QTextStream(stdout) << "Cursora — cursor packs for Omarchy\n"
                 "cursora open [--language ru|en|da]\n"
                 "cursora list|status [--json]\n"
-                "cursora apply --theme NAME [--dry-run] [--json]\n"
+                "cursora apply --theme NAME [--size 16..128] [--dry-run] [--json]\n"
                 "cursora undo [--json]\ncursora skill install [--json]\n";
             return 0;
         } else { ok = false; result["error"] = "Unknown command. Run cursora --help."; }
@@ -107,6 +111,7 @@ int main(int argc, char *argv[]) {
     if (engine.rootObjects().isEmpty()) return 1;
     if (command == "--screenshot") {
         backend.setSelected("Cursora-Bibata-Black");
+        backend.setCursorSize(48);
         auto *window = qobject_cast<QQuickWindow *>(engine.rootObjects().first());
         QTimer::singleShot(1200, &app, [window, &app, arguments] {
             const bool ok = window->grabWindow().save(arguments.value(1));

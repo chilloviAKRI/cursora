@@ -2,15 +2,20 @@ Theme and translation utilities are adapted from the Omarchy App Templates,
 based on Omacut and Monologue (MIT, Copyright David Heinemeier Hansson).
 
 Bundled cursor packs:
-Bibata Modern 2.0.7, by ful1e5 and contributors — GPL-3.0-only
+Bibata Modern and Original 2.0.7, by ful1e5 and contributors — GPL-3.0-only
 https://github.com/ful1e5/Bibata_Cursor
 BreezeX 2.0.1, by ful1e5 and contributors — GPL-3.0-only
 https://github.com/ful1e5/BreezeX_Cursor
 Phinger 2.2, by phisch and contributors — CC-BY-SA-4.0
 https://github.com/phisch/phinger-cursors
 
-Modifications by Cursora contributors (2026): rename the six included black
-and white themes and convert colored status indicators to grayscale.
+Banana 2.0.0, by ful1e5 and contributors — GPL-3.0-only
+https://github.com/ful1e5/banana-cursor
+DMZ 0.4.5.2, copyright 2007–2010 Novell, Inc. — CC-BY-SA-3.0
+https://sources.debian.org/src/dmz-cursor-theme/0.4.5.2/
+
+Modifications by Cursora contributors (2026): rename bundled themes, convert
+colored pixels to grayscale, and add modern cursor aliases to DMZ.
 Shape geometry, alpha, sizes, hotspots, animation frames and timing are retained.
 Each theme includes its upstream license in COPYING and attribution in NOTICE.
 Corresponding upstream sources and the preparation/modification code are shipped

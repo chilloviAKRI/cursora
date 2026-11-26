@@ -37,8 +37,10 @@ ApplicationWindow {
     function syncSelection() {
         for (let i = 0; i < backend.themes.length; i++) {
             if (backend.themes[i].id === backend.selected) {
-                themeList.currentIndex = i;
-                themeList.positionViewAtIndex(i, ListView.Contain);
+                if (themeList.currentIndex !== i) {
+                    themeList.currentIndex = i;
+                    themeList.positionViewAtIndex(i, ListView.Contain);
+                }
                 return;
             }
         }
@@ -212,8 +214,29 @@ ApplicationWindow {
                         Label { text: win.descriptionFor(backend.selected); color: win.quietColor; font.pixelSize: 11; Layout.fillWidth: true; wrapMode: Text.WordWrap }
                     }
                     RowLayout {
+                        Layout.fillWidth: true
+                        spacing: 12
+                        Label { text: qsTr("Cursor size"); color: theme.foreground }
+                        Slider {
+                            id: sizeSlider
+                            objectName: "sizeSlider"
+                            Layout.fillWidth: true
+                            from: 16; to: 128; stepSize: 1
+                            value: backend.cursorSize
+                            enabled: themeList.count > 0 && !win.busy
+                            Accessible.name: qsTr("Cursor size")
+                            onMoved: backend.cursorSize = Math.round(value)
+                        }
+                        Label {
+                            text: qsTr("%1 px").arg((translator.language, backend.cursorSize.toLocaleString(Qt.locale(), 'f', 0)))
+                            color: theme.foreground
+                            Layout.minimumWidth: 58
+                            horizontalAlignment: Text.AlignTrailing
+                        }
+                    }
+                    RowLayout {
                         Layout.fillWidth: true; Layout.fillHeight: true
-                        Layout.minimumHeight: 150; Layout.maximumHeight: 220
+                        Layout.minimumHeight: 160; Layout.maximumHeight: 220
                         spacing: 10
                         Repeater {
                             model: [{light: false, label: qsTr("DARK")}, {light: true, label: qsTr("LIGHT")}]
@@ -225,8 +248,10 @@ ApplicationWindow {
                                 radius: theme.radius
                                 Image {
                                     anchors.centerIn: parent
-                                    width: 82; height: 82
-                                    source: backend.preview(backend.selected, "left_ptr", 80)
+                                    anchors.verticalCenterOffset: -12
+                                    width: Math.min(128, backend.cursorSize)
+                                    height: width
+                                    source: backend.preview(backend.selected, "left_ptr", backend.cursorSize)
                                     fillMode: Image.PreserveAspectFit
                                 }
                                 Label {
@@ -265,7 +290,8 @@ ApplicationWindow {
                 Layout.fillWidth: true; spacing: 18
                 Label {
                     objectName: "statusLabel"
-                    text: backend.message.length ? backend.message : backend.dirty ? qsTr("Pack selected. Press Apply.") : qsTr("● Active pack")
+                    text: backend.failed || !backend.dirty && backend.message.length ? backend.message
+                        : backend.dirty ? qsTr("Press Apply to save changes.") : qsTr("● Active pack")
                     color: backend.failed ? theme.accent : win.quietColor
                     Layout.fillWidth: true; wrapMode: Text.WordWrap; font.pixelSize: 11
                 }

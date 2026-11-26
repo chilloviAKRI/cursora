@@ -8,7 +8,7 @@ class Backend : public QObject {
     Q_PROPERTY(QVariantList themes READ themes NOTIFY changed)
     Q_PROPERTY(QString selected READ selected WRITE setSelected NOTIFY changed)
     Q_PROPERTY(QString active READ active NOTIFY changed)
-    Q_PROPERTY(int cursorSize READ cursorSize NOTIFY changed)
+    Q_PROPERTY(int cursorSize READ cursorSize WRITE setCursorSize NOTIFY changed)
     Q_PROPERTY(QString message READ message NOTIFY changed)
     Q_PROPERTY(bool failed READ failed NOTIFY changed)
     Q_PROPERTY(bool dirty READ dirty NOTIFY changed)
@@ -22,10 +22,11 @@ public:
     int cursorSize() const { return m_size; }
     QString message() const { return m_message; }
     bool failed() const { return m_failed; }
-    bool dirty() const { return m_selected != m_active; }
+    bool dirty() const { return m_selected != m_active || m_size != m_activeSize; }
     bool canUndo() const;
     QString themesDirectory() const;
     void setSelected(const QString &value);
+    void setCursorSize(int value);
     Q_INVOKABLE QString themeTitle(const QString &id) const;
     Q_INVOKABLE QString themeDescription(const QString &id) const;
     Q_INVOKABLE void rescan();
@@ -36,7 +37,7 @@ public:
     Q_INVOKABLE void openThemesDirectory();
     static QByteArray iniValue(QByteArray data, const QString &section, const QString &key, const QString &value);
     static QByteArray managedBlock(QByteArray data, const QByteArray &content);
-    QMap<QString, QByteArray> plannedFiles() const;
+    QMap<QString, QByteArray> plannedFiles(int size = 0) const;
     QString lastBackup() const { return m_lastBackup; }
 signals:
     void changed();
@@ -54,5 +55,6 @@ private:
     QVariantList m_themes;
     QString m_selected, m_active, m_message, m_lastBackup;
     int m_size = 24, m_activeSize = 24;
+    bool m_sizeEdited = false;
     bool m_failed = false;
 };
