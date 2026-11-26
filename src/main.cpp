@@ -27,7 +27,7 @@ int main(int argc, char *argv[]) {
     }
     QGuiApplication app(argc, argv);
     app.setApplicationName("cursora");
-    app.setApplicationVersion("0.4.6");
+    app.setApplicationVersion("0.4.7");
     app.setDesktopFileName("cursora");
     app.setWindowIcon(QIcon::fromTheme("cursora"));
     QQuickStyle::setStyle("Material");

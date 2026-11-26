@@ -85,8 +85,7 @@ for theme, pack in packs.items():
                     assert all(((p >> 16) & 255) == ((p >> 8) & 255) == (p & 255) for p in pixels)
                     if cursor.name == 'hand2':
                         assert pixels[yhot * width + xhot] >> 24 > 0, 'Link hotspot misses the fingertip'
-                        assert set(pixels) <= {0x00000000, 0xff0f0f0f, 0xfff7f7f7}, (
-                            f'Smoothed link cursor at {nominal}px')
+                        assert any(0 < (p >> 24) < 255 for p in pixels), f'Jagged link edge at {nominal}px'
                     elif nominal == native:
                         coverage = sum((p >> 24) >= 128 for p in pixels)
                         assert coverage * 100 >= width * height * 28, f'Resize glyph is too small: {cursor}'

@@ -56,12 +56,11 @@ QPainterPath linkGlyph() {
     QPainterPath path;
     // Keep the tilted index finger and bent wrist, with straight facets
     // around the fingertip, knuckles and thumb to match the main pointer.
-    line(path, {{4.9, 3.75}, {6.25, 2.4}, {7.6, 2.9}, {11.7, 8.8},
-                {12.2, 7.4}, {13.65, 7.9}, {15, 9.6}, {16.1, 8.75},
-                {17.05, 9.45}, {18.2, 11.2}, {19.45, 10.8}, {20.25, 11.5},
-                {21.3, 13.15}, {21.7, 16.15}, {20.2, 18.65}, {16.4, 21.1},
-                {14.15, 21.1}, {6.6, 17.0}, {5.95, 15.9}, {6.85, 14.65},
-                {8.2, 14.65}, {10.8, 16}});
+    line(path, {{4.85, 4.25}, {7.0, 2.85}, {11.7, 8.8}, {12.2, 7.4},
+                {13.65, 7.9}, {15, 9.6}, {16.1, 8.75}, {17.05, 9.45},
+                {18.2, 11.2}, {19.45, 10.8}, {21.4, 13.2}, {21.4, 17.0},
+                {18.2, 21.1}, {14.15, 21.1}, {6.6, 17.0}, {5.95, 15.6},
+                {7.5, 14.45}, {10.8, 16}});
     path.closeSubpath();
     return path;
 }
@@ -141,15 +140,15 @@ QImage render(const Kind &kind, int size, int frame) {
         return image;
     } else if (kind == "hand2" || kind.endsWith("-resize")) {
         const bool link = kind == "hand2";
-        painter.setRenderHint(QPainter::Antialiasing, !link);
+        painter.setRenderHint(QPainter::Antialiasing);
         drawOutlinedShape(painter, link ? linkGlyph() : resizeGlyph(kind.chopped(7)),
-                          link ? 3.2 : 2.2, link ? Qt::BevelJoin : Qt::RoundJoin);
+                          link ? 3.2 : 2.2, link ? Qt::MiterJoin : Qt::RoundJoin);
         if (link) {
             // Short creases make the bent fingers readable at the native size.
             QPainterPath creases;
             line(creases, {{12.15, 9.9}, {13.1, 10.55}, {13.65, 11.55}});
             line(creases, {{15.5, 11.1}, {16.3, 11.75}, {16.9, 12.7}});
-            painter.strokePath(creases, QPen(Paper, .9, Qt::SolidLine, Qt::SquareCap, Qt::BevelJoin));
+            painter.strokePath(creases, QPen(Paper, .9, Qt::SolidLine, Qt::SquareCap, Qt::MiterJoin));
         }
         painter.end();
         return image;
