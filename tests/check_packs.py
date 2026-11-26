@@ -78,6 +78,15 @@ for theme, pack in packs.items():
                     assert alpha[yhot * width + xhot] > 0, f'Invisible click tip at {nominal}px'
                     assert any(0 < a < 255 for a in alpha), f'Jagged arrow edge at {nominal}px'
                     assert pixels.count(0xff0f0f0f) >= nominal * nominal // 10, f'Arrow core is too small at {nominal}px'
+                elif cursor.name == 'hand2' or cursor.name.endswith('-resize'):
+                    assert 0xff0f0f0f in pixels, f'Missing dark fill in {cursor} at {nominal}px'
+                    assert any((p >> 24) >= 100 and (p & 255) * 10 >= (p >> 24) * 9 for p in pixels), (
+                        f'Missing bright outline in {cursor} at {nominal}px')
+                    assert all(((p >> 16) & 255) == ((p >> 8) & 255) == (p & 255) for p in pixels)
+                    if cursor.name == 'hand2':
+                        assert pixels[yhot * width + xhot] >> 24 > 0, 'Link hotspot misses the fingertip'
+                    assert not any(pixels[:width]) and not any(pixels[-width:]), f'Clipped glyph: {cursor}'
+                    assert not any(pixels[::width]) and not any(pixels[width-1::width]), f'Clipped glyph: {cursor}'
                 else:
                     assert set(pixels) <= {0x00000000, 0xff0f0f0f, 0xfff7f7f7}, f'Unexpected color in {cursor} at {nominal}px'
             if cursor.name in ('watch', 'progress'):

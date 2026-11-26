@@ -46,21 +46,69 @@ void drawGlyph(QPainter &painter, const QPainterPath &path, bool filled = false)
     painter.drawPath(path);
 }
 
-QPainterPath resizeGlyph(int angle, bool both) {
+void drawOutlinedShape(QPainter &painter, const QPainterPath &path) {
+    painter.setRenderHint(QPainter::Antialiasing);
+    painter.strokePath(path, QPen(Paper, 2.0, Qt::SolidLine, Qt::RoundCap, Qt::RoundJoin));
+    painter.fillPath(path, Ink);
+}
+
+QPainterPath linkGlyph() {
     QPainterPath path;
-    line(path, {{-7, 0}, {7, 0}});
-    line(path, {{3, -4}, {7, 0}, {3, 4}});
-    if (both) line(path, {{-3, -4}, {-7, 0}, {-3, 4}});
+    path.moveTo(5.2, 4.4);
+    path.quadTo(4.4, 3.1, 5.6, 2.5);
+    path.quadTo(6.7, 1.9, 7.6, 3.1);
+    path.lineTo(11.7, 8.8);
+    path.quadTo(12.1, 7.1, 13.4, 7.8);
+    path.quadTo(14.2, 8.2, 15, 9.6);
+    path.quadTo(15.9, 8.6, 16.9, 9.5);
+    path.lineTo(18.2, 11.2);
+    path.quadTo(19.2, 10.7, 20, 11.7);
+    path.lineTo(21, 13.3);
+    path.quadTo(22.4, 16.4, 20, 18.8);
+    path.lineTo(16.4, 21.6);
+    path.quadTo(14.6, 21.7, 13.3, 20.9);
+    path.lineTo(6.9, 17.1);
+    path.quadTo(5.7, 16.3, 6.3, 15.3);
+    path.quadTo(6.9, 14.2, 8.2, 14.7);
+    path.lineTo(10.8, 16);
+    path.closeSubpath();
+    return path;
+}
+
+QPainterPath resizeGlyph(const Kind &direction) {
+    static const QMap<Kind, int> angles{
+        {"e", 0}, {"se", 45}, {"s", 90}, {"sw", 135}, {"w", 180},
+        {"nw", 225}, {"n", 270}, {"ne", 315}, {"ew", 0},
+        {"ns", 90}, {"nwse", 45}, {"nesw", 135}, {"col", 0}, {"row", 90}
+    };
+    QPainterPath path;
+    if (direction == "col" || direction == "row") {
+        // Column and row dividers have a fixed rule between the two tips.
+        line(path, {{3, -1.35}, {5.5, -1.35}, {5.5, -4}, {9.5, 0},
+                    {5.5, 4}, {5.5, 1.35}, {3, 1.35}});
+        path.closeSubpath();
+        path.addPath(QTransform::fromScale(-1, 1).map(path));
+        path.addRect(QRectF(-.85, -8.5, 1.7, 17));
+    } else if (direction.size() > 2 || direction == "ew" || direction == "ns") {
+        line(path, {{-9, 0}, {-4.7, -4}, {-4.7, -1.35}, {4.7, -1.35}, {4.7, -4},
+                    {9, 0}, {4.7, 4}, {4.7, 1.35}, {-4.7, 1.35}, {-4.7, 4}});
+        path.closeSubpath();
+    } else {
+        line(path, {{-8, -1.35}, {.8, -1.35}, {.8, -4}, {5.3, 0},
+                    {.8, 4}, {.8, 1.35}, {-8, 1.35}});
+        path.closeSubpath();
+        path.addRect(QRectF(7.9, -4.3, 1.5, 8.6));
+    }
     QTransform transform;
     transform.translate(12, 12);
-    transform.rotate(angle);
+    transform.rotate(angles.value(direction));
     return transform.map(path);
 }
 
 QPoint logicalHotspot(const Kind &kind) {
     if (kind == "left_ptr" || kind == "context-menu" || kind == "copy" ||
         kind == "alias" || kind == "help" || kind == "progress") return {2, 2};
-    if (kind == "hand2") return {9, 3};
+    if (kind == "hand2") return {6, 3};
     return {12, 12};
 }
 
@@ -79,17 +127,25 @@ QImage render(const Kind &kind, int size, int frame) {
         drawArrow(painter);
         painter.end();
         return image;
-    } else if (kind == "hand2" || kind == "grab" || kind == "grabbing") {
+    } else if (kind == "hand2" || kind.endsWith("-resize")) {
+        drawOutlinedShape(painter, kind == "hand2" ? linkGlyph() : resizeGlyph(kind.chopped(7)));
         if (kind == "hand2") {
-            line(path, {{9, 3}, {11, 3}, {11, 9}, {18, 9}, {20, 11}, {20, 16},
-                        {16, 21}, {12, 21}, {5, 15}, {5, 12}, {9, 14}, {9, 3}});
-        } else {
-            const int top = kind == "grab" ? 5 : 8;
-            line(path, {{5, 11}, {7, 11}, {7, qreal(top)}, {9, qreal(top)},
-                        {9, 9}, {11, 9}, {11, qreal(top - 1)}, {13, qreal(top - 1)},
-                        {13, 9}, {15, 9}, {15, qreal(top)}, {17, qreal(top)},
-                        {17, 10}, {20, 10}, {20, 16}, {17, 21}, {10, 21}, {5, 15}, {5, 11}});
+            // Short creases make the bent fingers readable at the native size.
+            QPainterPath creases;
+            creases.moveTo(12.2, 10);
+            creases.quadTo(13, 10.7, 13.4, 11.6);
+            creases.moveTo(15.5, 11.2);
+            creases.quadTo(16.2, 11.8, 16.6, 12.6);
+            painter.strokePath(creases, QPen(Paper, .85, Qt::SolidLine, Qt::RoundCap));
         }
+        painter.end();
+        return image;
+    } else if (kind == "grab" || kind == "grabbing") {
+        const int top = kind == "grab" ? 5 : 8;
+        line(path, {{5, 11}, {7, 11}, {7, qreal(top)}, {9, qreal(top)},
+                    {9, 9}, {11, 9}, {11, qreal(top - 1)}, {13, qreal(top - 1)},
+                    {13, 9}, {15, 9}, {15, qreal(top)}, {17, qreal(top)},
+                    {17, 10}, {20, 10}, {20, 16}, {17, 21}, {10, 21}, {5, 15}, {5, 11}});
         path.closeSubpath();
         drawGlyph(painter, path, true);
     } else if (kind == "xterm" || kind == "vertical-text") {
@@ -141,14 +197,6 @@ QImage render(const Kind &kind, int size, int frame) {
             if (kind == "zoom-in") line(path, {{9.5, 7}, {9.5, 12}});
         }
         drawGlyph(painter, path);
-    } else if (kind.endsWith("-resize")) {
-        const Kind direction = kind.chopped(7);
-        const QMap<Kind, int> angles{
-            {"e", 0}, {"se", 45}, {"s", 90}, {"sw", 135}, {"w", 180},
-            {"nw", 225}, {"n", 270}, {"ne", 315}, {"ew", 0},
-            {"ns", 90}, {"nwse", 45}, {"nesw", 135}
-        };
-        drawGlyph(painter, resizeGlyph(angles.value(direction), direction.size() > 1));
     } else {
         painter.save();
         painter.scale(.75, .75);
@@ -234,7 +282,7 @@ bool createOmarchyCursorPack(const QString &directory, QString *error) {
         "left_ptr", "hand2", "grab", "grabbing", "xterm", "vertical-text", "crosshair", "cell",
         "move", "watch", "progress", "not-allowed", "zoom-in", "zoom-out", "e-resize", "se-resize",
         "s-resize", "sw-resize", "w-resize", "nw-resize", "n-resize", "ne-resize", "ew-resize",
-        "ns-resize", "nwse-resize", "nesw-resize", "context-menu", "copy", "alias", "help"
+        "ns-resize", "nwse-resize", "nesw-resize", "col-resize", "row-resize", "context-menu", "copy", "alias", "help"
     };
     for (const auto &shape : shapes) {
         const QString path = cursors + "/" + QString::fromLatin1(shape);
@@ -254,7 +302,7 @@ bool createOmarchyCursorPack(const QString &directory, QString *error) {
         {"size_ver", "ns-resize"}, {"v_double_arrow", "ns-resize"}, {"sb_v_double_arrow", "ns-resize"},
         {"size_fdiag", "nwse-resize"}, {"bd_double_arrow", "nwse-resize"},
         {"size_bdiag", "nesw-resize"}, {"fd_double_arrow", "nesw-resize"},
-        {"col-resize", "ew-resize"}, {"row-resize", "ns-resize"}, {"dnd-copy", "copy"},
+        {"dnd-copy", "copy"},
         {"dnd-link", "alias"}, {"dnd-move", "move"}, {"dnd-none", "not-allowed"},
         {"dnd-ask", "help"}, {"question_arrow", "help"}, {"left_ptr_help", "help"},
         {"link", "alias"}, {"openhand", "grab"}, {"closedhand", "grabbing"}, {"X_cursor", "crosshair"},
