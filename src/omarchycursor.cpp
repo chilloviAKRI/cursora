@@ -53,8 +53,8 @@ QByteArray chamferedPointer(QByteArray svg) {
     if (end < 0) return {};
 
     // Cut the tip and shoulders on the original 256 px Bibata canvas.
-    svg.replace(start, end - start, "M62.5 52L78.1 47.9L198.2 154.8L197.4 164.7"
-                                    "L122.261 166.392L73 218.2L62.5 216.7Z");
+    svg.replace(start, end - start, "M62.5 56.5L87.8 56.5L192.5 149.03L192.5 164.8"
+                                    "L122.261 166.392L79.88 211L62.5 211Z");
     return svg;
 }
 
