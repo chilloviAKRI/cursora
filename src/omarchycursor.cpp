@@ -6,6 +6,7 @@
 #include <QMap>
 #include <QPainter>
 #include <QPainterPath>
+#include <QPainterPathStroker>
 #include <QTransform>
 #include <cstring>
 #include <filesystem>
@@ -15,6 +16,7 @@ namespace {
 using Kind = QByteArray;
 constexpr int BaseSize = 24;
 constexpr int StraightResizePadding = 4;
+constexpr qreal OutlineThickness = 1.35;
 constexpr QColor Ink(15, 15, 15);
 constexpr QColor Paper(247, 247, 247);
 
@@ -29,38 +31,37 @@ void line(QPainterPath &path, std::initializer_list<QPointF> points) {
     for (; point != points.end(); ++point) path.lineTo(*point);
 }
 
-void drawArrow(QPainter &painter, const Palette &palette) {
-    // The nested shapes give the pointer one outline without a shadow.
-    QPainterPath outline, body;
+void drawArrow(QPainter &painter, const Palette &palette, qreal scale = 1) {
+    QPainterPath outline;
     line(outline, {{2, 2}, {22, 14}, {13, 15}, {17, 21},
-                   {12, 23}, {8, 17}, {2, 21}, {2, 2}});
-    line(body, {{4, 5}, {18, 13.25}, {10.5, 14}, {14.75, 20.25},
-                {12.75, 21.25}, {8.75, 14.75}, {4, 18}, {4, 5}});
+                   {12, 23}, {8, 17}, {2, 21}});
+    outline.closeSubpath();
+    outline = QTransform::fromScale(scale, scale).map(outline);
+    // Inset the fill from the original silhouette to keep the pointer's tip and edges.
+    QPainterPathStroker border;
+    border.setWidth(2 * OutlineThickness);
+    border.setJoinStyle(Qt::MiterJoin);
     painter.fillPath(outline, palette.outline);
-    painter.fillPath(body, palette.fill);
+    painter.fillPath(outline.subtracted(border.createStroke(outline)), palette.fill);
 }
 
-void drawGlyph(QPainter &painter, const QPainterPath &path, const Palette &palette, bool filled = false) {
+void drawGlyph(QPainter &painter, const QPainterPath &path, const Palette &palette) {
+    constexpr qreal strokeWidth = 2;
     const auto pen = [](QColor color, qreal width) {
         return QPen(color, width, Qt::SolidLine, Qt::SquareCap, Qt::MiterJoin);
     };
-    painter.setBrush(Qt::NoBrush);
-    painter.setPen(pen(palette.outline, 3.2));
-    painter.drawPath(path);
-    painter.setPen(filled ? QPen(Qt::NoPen) : pen(palette.fill, 1.2));
-    if (filled) painter.setBrush(palette.fill);
-    painter.drawPath(path);
+    painter.strokePath(path, pen(palette.outline, strokeWidth + 2 * OutlineThickness));
+    painter.strokePath(path, pen(palette.fill, strokeWidth));
 }
 
-void drawOutlinedShape(QPainter &painter, const QPainterPath &path, const Palette &palette, qreal outlineWidth,
-                       Qt::PenJoinStyle join) {
-    painter.strokePath(path, QPen(palette.outline, outlineWidth, Qt::SolidLine, Qt::SquareCap, join));
+void drawOutlinedShape(QPainter &painter, const QPainterPath &path, const Palette &palette,
+                       Qt::PenJoinStyle join = Qt::MiterJoin) {
+    painter.strokePath(path, QPen(palette.outline, 2 * OutlineThickness, Qt::SolidLine, Qt::SquareCap, join));
     painter.fillPath(path, palette.fill);
 }
 
 void drawHand(QPainter &painter, const QPainterPath &shape, const QPainterPath &creases, const Palette &palette) {
-    painter.setRenderHint(QPainter::Antialiasing);
-    drawOutlinedShape(painter, shape, palette, 3.2, Qt::MiterJoin);
+    drawOutlinedShape(painter, shape, palette);
     painter.strokePath(creases, QPen(palette.outline, .9, Qt::SolidLine, Qt::SquareCap, Qt::MiterJoin));
 }
 
@@ -164,18 +165,13 @@ QImage render(const Kind &kind, int size, int frame, int padding, const Palette 
     QImage image(extent, extent, QImage::Format_ARGB32_Premultiplied);
     image.fill(Qt::transparent);
     QPainter painter(&image);
-    painter.setRenderHint(QPainter::Antialiasing, false);
+    painter.setRenderHint(QPainter::Antialiasing);
     const qreal scale = qreal(size) / BaseSize;
     painter.translate(padding, padding);
     painter.scale(scale, scale);
     QPainterPath path;
     if (kind == "left_ptr") {
-        // Rasterize the original silhouette at this frame's actual size.
-        // Smooth its edge coverage without resampling a smaller cursor.
-        painter.setRenderHint(QPainter::Antialiasing);
         drawArrow(painter, palette);
-        painter.end();
-        return image;
     } else if (kind == "hand2") {
         // Short creases make the bent fingers readable at the native size.
         QPainterPath creases;
@@ -183,17 +179,10 @@ QImage render(const Kind &kind, int size, int frame, int padding, const Palette 
         line(creases, {{15.3, 9.6}, {16.0, 10.45}, {16.45, 12.35}});
         line(creases, {{18.9, 10.65}, {19.45, 11.5}, {19.65, 13.1}});
         drawHand(painter, linkGlyph(), creases, palette);
-        painter.end();
-        return image;
     } else if (kind.endsWith("-resize")) {
-        painter.setRenderHint(QPainter::Antialiasing);
-        drawOutlinedShape(painter, resizeGlyph(kind.chopped(7)), palette, 2.2, Qt::RoundJoin);
-        painter.end();
-        return image;
+        drawOutlinedShape(painter, resizeGlyph(kind.chopped(7)), palette, Qt::RoundJoin);
     } else if (kind == "grab" || kind == "grabbing") {
         drawGrabHand(painter, kind == "grabbing", palette);
-        painter.end();
-        return image;
     } else if (kind == "xterm" || kind == "vertical-text") {
         line(path, {{8, 4}, {16, 4}});
         line(path, {{12, 4}, {12, 20}});
@@ -217,16 +206,15 @@ QImage render(const Kind &kind, int size, int frame, int padding, const Palette 
         }
         drawGlyph(painter, path, palette);
     } else if (kind == "watch" || kind == "progress") {
+        QTransform badge;
         if (kind == "progress") {
-            painter.save();
-            painter.scale(.66, .66);
-            drawArrow(painter, palette);
-            painter.restore();
-            painter.translate(12, 12);
-            painter.scale(.45, .45);
+            drawArrow(painter, palette, .66);
+            badge.translate(12, 12);
+            badge.scale(.45, .45);
         }
         path.addRect(QRectF(4, 5, 16, 14));
-        drawGlyph(painter, path, palette, true);
+        drawOutlinedShape(painter, badge.map(path), palette);
+        painter.setWorldTransform(badge, true);
         QPainterPath prompt;
         line(prompt, {{7, 9}, {10, 12}, {7, 15}});
         painter.setPen(QPen(palette.outline, 1.5, Qt::SolidLine, Qt::SquareCap, Qt::MiterJoin));
@@ -244,12 +232,9 @@ QImage render(const Kind &kind, int size, int frame, int padding, const Palette 
         }
         drawGlyph(painter, path, palette);
     } else {
-        painter.save();
-        painter.scale(.75, .75);
-        drawArrow(painter, palette);
-        painter.restore();
+        drawArrow(painter, palette, .75);
         path.addRect(QRectF(13, 13, 8, 8));
-        drawGlyph(painter, path, palette, true);
+        drawOutlinedShape(painter, path, palette);
         QPainterPath badge;
         if (kind == "copy") {
             line(badge, {{15, 17}, {19, 17}});
@@ -268,16 +253,6 @@ QImage render(const Kind &kind, int size, int frame, int padding, const Palette 
         painter.drawPath(badge);
     }
     painter.end();
-    // Fractional transforms in the small badges can still leave partial
-    // coverage. Keep these glyphs on their two-tone pixel grid.
-    for (int y = 0; y < size; ++y) {
-        auto *row = reinterpret_cast<QRgb *>(image.scanLine(y));
-        for (int x = 0; x < size; ++x) {
-            const QRgb pixel = row[x];
-            const int alpha = qAlpha(pixel);
-            row[x] = alpha < 128 ? 0 : qRed(pixel) * 2 >= alpha ? Paper.rgba() : Ink.rgba();
-        }
-    }
     return image;
 }
 

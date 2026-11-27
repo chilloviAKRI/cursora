@@ -55,6 +55,13 @@ archives = {}
 checked_files = checked_frames = 0
 straight_resize = {'n-resize', 'e-resize', 's-resize', 'w-resize'}
 hand_shapes = {'hand2', 'grab', 'grabbing'}
+outline_samples = {
+    'left_ptr': (10, 0, 6),
+    'se-resize': (12, 20, 24),
+    'hand2': (15, 20, 24),
+    'xterm': (12, 8, 12),
+    'watch': (12, 0, 6),
+}
 for theme, pack in packs.items():
     path = root / 'build/themes' / theme
     assert (path / 'COPYING').is_file(), f'Missing license: {theme}'
@@ -90,6 +97,7 @@ for theme, pack in packs.items():
                 if cursor.name in straight_resize:
                     assert xhot == yhot == extent // 2, f'Off-center hotspot in {cursor}'
                 assert any(pixel >> 24 for pixel in pixels), f'Empty image: {cursor}'
+                assert all(((p >> 16) & 255) == ((p >> 8) & 255) == (p & 255) for p in pixels)
                 if cursor.name == 'left_ptr':
                     alpha = [p >> 24 for p in pixels]
                     assert alpha[yhot * width + xhot] > 0, f'Invisible click tip at {nominal}px'
@@ -97,18 +105,23 @@ for theme, pack in packs.items():
                     assert pixels.count(fill) >= nominal * nominal // 10, f'Arrow core is too small at {nominal}px'
                 elif cursor.name in hand_shapes or cursor.name.endswith('-resize'):
                     assert fill in pixels and outline in pixels, f'Missing fill or outline in {cursor} at {nominal}px'
-                    assert all(((p >> 16) & 255) == ((p >> 8) & 255) == (p & 255) for p in pixels)
                     if cursor.name in hand_shapes:
                         assert pixels[yhot * width + xhot] >> 24 > 0, f'Invisible hand hotspot in {cursor}'
                         assert any(0 < (p >> 24) < 255 for p in pixels), f'Jagged hand edge in {cursor} at {nominal}px'
                     elif nominal == native:
                         coverage = sum((p >> 24) >= 128 for p in pixels)
                         assert coverage * 100 >= nominal * nominal * 28, f'Resize glyph is too small: {cursor}'
-                    # Subpixel coverage may reach the edge, but solid artwork must fit.
-                    edges = pixels[:width] + pixels[-width:] + pixels[::width] + pixels[width-1::width]
-                    assert max(p >> 24 for p in edges) <= 64, f'Clipped glyph: {cursor}'
-                else:
-                    assert set(pixels) <= {0x00000000, 0xff0f0f0f, 0xfff7f7f7}, f'Unexpected color in {cursor} at {nominal}px'
+                # Subpixel coverage may reach the edge, but solid artwork must fit.
+                edges = pixels[:width] + pixels[-width:] + pixels[::width] + pixels[width-1::width]
+                assert max(p >> 24 for p in edges) <= 64, f'Clipped glyph: {cursor}'
+                if nominal == native * 4 and cursor.name in outline_samples:
+                    row, start, end = outline_samples[cursor.name]
+                    start, end = (row * width + start) * 4, (row * width + end) * 4
+                    fill_value, outline_value = fill & 255, outline & 255
+                    # Recover outline coverage from the two colors and premultiplied alpha.
+                    border = sum(((p & 255) - fill_value * (p >> 24) / 255) / (outline_value - fill_value)
+                                 for p in pixels[start:end])
+                    assert abs(border / 4 - 1.35) <= .08, f'Unexpected border width in {cursor}: {border / 4:.2f}px'
             if cursor.name in ('watch', 'progress'):
                 animation = [(meta[-1], pixels.tobytes()) for meta, pixels in images if meta[0] == native]
                 assert len(animation) == 4 and len(set(animation)) == 4 and all(delay > 0 for delay, _ in animation)
