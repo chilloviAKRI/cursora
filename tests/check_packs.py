@@ -52,12 +52,15 @@ def frames(data):
     return result
 
 def pointer_asymmetry(alpha, width, xhot, yhot):
+    axis_x, axis_y = 13, 15
+    length_squared = axis_x**2 + axis_y**2
+    diagonal = (axis_x**2 - axis_y**2) / length_squared
+    cross = 2 * axis_x * axis_y / length_squared
     difference = 0
     for i, coverage in enumerate(alpha):
         x, y = i % width + .5 - xhot, i // width + .5 - yhot
-        # Reflect across the pointer axis, whose direction is (1, 2).
-        mirror_x = round(xhot - .5 - .6 * x + .8 * y)
-        mirror_y = round(yhot - .5 + .8 * x + .6 * y)
+        mirror_x = round(xhot - .5 + diagonal * x + cross * y)
+        mirror_y = round(yhot - .5 + cross * x - diagonal * y)
         mirrored = alpha[mirror_y * width + mirror_x] if 0 <= mirror_x < width and 0 <= mirror_y < width else 0
         difference += abs(coverage - mirrored)
     return difference / sum(alpha)
@@ -65,6 +68,7 @@ def pointer_asymmetry(alpha, width, xhot, yhot):
 archives = {}
 checked_files = checked_frames = 0
 straight_resize = {'n-resize', 'e-resize', 's-resize', 'w-resize'}
+extended_canvas = straight_resize | {'left_ptr'}
 hand_shapes = {'hand2', 'grab', 'grabbing'}
 outline_samples = {
     'left_ptr': (10, 0, 6),
@@ -104,7 +108,8 @@ for theme, pack in packs.items():
                                for p, d in zip(pixels, dark_pixels)), f'Colors are not swapped in {cursor}'
             for meta, pixels in images:
                 nominal, _, width, height, xhot, yhot, delay = meta
-                extent = nominal * 32 // 24 if cursor.name in straight_resize else nominal
+                extent = nominal * 32 // 24 if cursor.name in extended_canvas else nominal
+                padding = (extent - nominal) // 2
                 assert extent == width == height and 0 <= xhot < width and 0 <= yhot < height
                 if cursor.name in straight_resize:
                     assert xhot == yhot == extent // 2, f'Off-center hotspot in {cursor}'
@@ -112,13 +117,18 @@ for theme, pack in packs.items():
                 assert all(((p >> 16) & 255) == ((p >> 8) & 255) == (p & 255) for p in pixels)
                 if cursor.name == 'left_ptr':
                     alpha = [p >> 24 for p in pixels]
+                    assert xhot == yhot == padding + nominal // 12, f'Pointer hotspot moved in {cursor}'
                     assert alpha[yhot * width + xhot] > 0, f'Invisible click tip at {nominal}px'
                     assert any(0 < a < 255 for a in alpha), f'Jagged arrow edge at {nominal}px'
                     fill_area = sum((outline_value * a / 255 - (p & 255)) / (outline_value - fill_value)
                                     for p, a in zip(pixels, alpha))
                     assert fill_area >= nominal * nominal / 10, f'Arrow core is too small at {nominal}px'
-                    columns = [i % width for i, a in enumerate(alpha) if a >= 128]
-                    assert max(columns) - min(columns) + 1 <= nominal * 2 // 3, f'Arrow is too wide at {nominal}px'
+                    visible = [i for i, a in enumerate(alpha) if a >= 128]
+                    columns = [i % width for i in visible]
+                    rows = [i // width for i in visible]
+                    assert nominal * 9 // 10 <= max(columns) - min(columns) + 1 <= nominal, (
+                        f'Unexpected arrow width at {nominal}px')
+                    assert max(rows) - min(rows) + 1 >= nominal * 23 // 24, f'Arrow is too short at {nominal}px'
                     if nominal == native * 4:
                         assert pointer_asymmetry(alpha, width, xhot, yhot) < .04, f'Asymmetric arrow in {cursor}'
                 elif cursor.name in hand_shapes or cursor.name.endswith('-resize'):
@@ -134,7 +144,8 @@ for theme, pack in packs.items():
                 assert max(p >> 24 for p in edges) <= 64, f'Clipped glyph: {cursor}'
                 if nominal == native * 4 and cursor.name in outline_samples:
                     row, start, end = outline_samples[cursor.name]
-                    start, end = (row * width + start) * 4, (row * width + end) * 4
+                    offset = (row * 4 + padding) * width + padding
+                    start, end = offset + start * 4, offset + end * 4
                     # Recover outline coverage from the two colors and premultiplied alpha.
                     border = sum(((p & 255) - fill_value * (p >> 24) / 255) / (outline_value - fill_value)
                                  for p in pixels[start:end])

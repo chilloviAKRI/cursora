@@ -16,7 +16,7 @@
 namespace {
 using Kind = QByteArray;
 constexpr int BaseSize = 24;
-constexpr int StraightResizePadding = 4;
+constexpr int ExtendedCanvasPadding = 4;
 constexpr qreal OutlineThickness = 1.35;
 constexpr QColor Ink(15, 15, 15);
 constexpr QColor Paper(247, 247, 247);
@@ -176,13 +176,14 @@ QImage render(const Kind &kind, int size, int frame, int padding, const Palette 
     QPainterPath path;
     if (kind == "left_ptr") {
         const QPointF tip{2, 2};
-        const QPointF axis = QLineF(0, 0, 1, 2).unitVector().p2();
+        const QPointF axis = QLineF(0, 0, 13, 15).unitVector().p2();
         const QPointF across{axis.y(), -axis.x()};
-        const QPointF shoulders = tip + axis * 16;
-        const QPointF end = tip + axis * 21.2;
-        // Mirror the whole silhouette across the pointer's axis.
-        line(path, {tip, shoulders + across * 8, shoulders + across * 2.6, end + across * 4.25,
-                    end - across * 4.25, shoulders - across * 2.6, shoulders - across * 8});
+        const QPointF shoulders = tip + axis * 20.9;
+        const QPointF neck = tip + axis * 19.15;
+        const QPointF end = tip + axis * 27.7;
+        // Use the same angular shoulder and flared tail on both sides.
+        line(path, {tip, shoulders + across * 12.3, neck + across * 3.2, end + across * 5.6,
+                    end - across * 5.6, neck - across * 3.2, shoulders - across * 12.3});
         path.closeSubpath();
         drawArrow(painter, path, palette);
     } else if (kind == "hand2") {
@@ -277,10 +278,11 @@ bool writeCursor(const QString &filename, const Kind &kind, const Palette &palet
     auto *images = XcursorImagesCreate(4 * frames);
     if (!images) return false;
     const QPoint hotspot = logicalHotspot(kind);
-    // The rotated corner needs extra canvas. Keep the nominal size and scale unchanged.
+    // Larger silhouettes need extra canvas while keeping the nominal size matched to the theme.
     const bool straightResize = kind.endsWith("-resize") && kind.chopped(7).size() == 1;
+    const bool extendedCanvas = kind == "left_ptr" || straightResize;
     for (int size : sizes) {
-        const int padding = straightResize ? StraightResizePadding * size / BaseSize : 0;
+        const int padding = extendedCanvas ? ExtendedCanvasPadding * size / BaseSize : 0;
         for (int frame = 0; frame < frames; ++frame) {
             const int extent = size + 2 * padding;
             auto *image = XcursorImageCreate(extent, extent);
