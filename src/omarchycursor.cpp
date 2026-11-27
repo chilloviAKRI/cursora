@@ -176,13 +176,13 @@ QImage render(const Kind &kind, int size, int frame, int padding, const Palette 
     QPainterPath path;
     if (kind == "left_ptr") {
         const QPointF tip{2, 2};
-        const QPointF neck{9.9, 16.1};
-        const QPointF axis = QLineF(tip, neck).unitVector().p2() - tip;
+        const QPointF axis = QLineF(0, 0, 1, 2).unitVector().p2();
         const QPointF across{axis.y(), -axis.x()};
-        const QPointF end = neck + axis * 5.35;
-        const QPointF shoulder = neck + across * 2.6;
-        line(path, {tip, {17.5, shoulder.y()}, shoulder, end + across * 4.2,
-                    end - across * 4.2, neck - across * 2.6, {2, 21}});
+        const QPointF shoulders = tip + axis * 16;
+        const QPointF end = tip + axis * 21.2;
+        // Mirror the whole silhouette across the pointer's axis.
+        line(path, {tip, shoulders + across * 8, shoulders + across * 2.6, end + across * 4.25,
+                    end - across * 4.25, shoulders - across * 2.6, shoulders - across * 8});
         path.closeSubpath();
         drawArrow(painter, path, palette);
     } else if (kind == "hand2") {

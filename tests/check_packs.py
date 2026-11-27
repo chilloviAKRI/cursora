@@ -51,6 +51,17 @@ def frames(data):
     assert result, 'Missing image frames'
     return result
 
+def pointer_asymmetry(alpha, width, xhot, yhot):
+    difference = 0
+    for i, coverage in enumerate(alpha):
+        x, y = i % width + .5 - xhot, i // width + .5 - yhot
+        # Reflect across the pointer axis, whose direction is (1, 2).
+        mirror_x = round(xhot - .5 - .6 * x + .8 * y)
+        mirror_y = round(yhot - .5 + .8 * x + .6 * y)
+        mirrored = alpha[mirror_y * width + mirror_x] if 0 <= mirror_x < width and 0 <= mirror_y < width else 0
+        difference += abs(coverage - mirrored)
+    return difference / sum(alpha)
+
 archives = {}
 checked_files = checked_frames = 0
 straight_resize = {'n-resize', 'e-resize', 's-resize', 'w-resize'}
@@ -108,6 +119,8 @@ for theme, pack in packs.items():
                     assert fill_area >= nominal * nominal / 10, f'Arrow core is too small at {nominal}px'
                     columns = [i % width for i, a in enumerate(alpha) if a >= 128]
                     assert max(columns) - min(columns) + 1 <= nominal * 2 // 3, f'Arrow is too wide at {nominal}px'
+                    if nominal == native * 4:
+                        assert pointer_asymmetry(alpha, width, xhot, yhot) < .04, f'Asymmetric arrow in {cursor}'
                 elif cursor.name in hand_shapes or cursor.name.endswith('-resize'):
                     assert fill in pixels and outline in pixels, f'Missing fill or outline in {cursor} at {nominal}px'
                     if cursor.name in hand_shapes:
