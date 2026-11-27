@@ -7,7 +7,7 @@ Cursora — выбор внешнего вида курсора для Omarchy �
 
 | Семейство | Формы | Варианты |
 | --- | --- | --- |
-| Omarchy Terminal | Угловатая стрелка, терминальные символы и анимация ожидания | Чёрный и белый |
+| Omarchy Terminal | Стрелка Bibata Original, терминальные символы и анимация ожидания | Чёрный и белый |
 | [Bibata Modern](https://github.com/ful1e5/Bibata_Cursor) | Мягкие, скруглённые | Чёрный и белый |
 | [BreezeX](https://github.com/ful1e5/BreezeX_Cursor) | Острые, угловатые | Чёрный и белый |
 | [Phinger](https://github.com/phisch/phinger-cursors) | Компактная стрелка, выразительные руки | Чёрный и белый |

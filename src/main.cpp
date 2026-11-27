@@ -27,7 +27,7 @@ int main(int argc, char *argv[]) {
     }
     QGuiApplication app(argc, argv);
     app.setApplicationName("cursora");
-    app.setApplicationVersion("0.5.5");
+    app.setApplicationVersion("0.5.6");
     app.setDesktopFileName("cursora");
     app.setWindowIcon(QIcon::fromTheme("cursora"));
     QQuickStyle::setStyle("Material");
@@ -39,7 +39,7 @@ int main(int argc, char *argv[]) {
         QString error;
         const bool ok = command == "monochrome-themes"
             ? monochromeThemes(arguments.value(1), &error)
-            : createOmarchyCursorPack(arguments.value(1), arguments.contains("--light"), &error);
+            : createOmarchyCursorPack(arguments.value(1), arguments.value(2), arguments.contains("--light"), &error);
         if (!ok) QTextStream(stderr) << error << '\n';
         return ok ? 0 : 1;
     }

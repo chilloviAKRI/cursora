@@ -3,7 +3,6 @@
 #include <QDir>
 #include <QFile>
 #include <QImage>
-#include <QLineF>
 #include <QMap>
 #include <QPainter>
 #include <QPainterPath>
@@ -16,8 +15,9 @@
 namespace {
 using Kind = QByteArray;
 constexpr int BaseSize = 24;
-constexpr int ExtendedCanvasPadding = 4;
-constexpr qreal OutlineThickness = 1.35;
+constexpr int StraightResizePadding = 4;
+// Bibata Original uses a 17 px outline on a 256 px canvas.
+constexpr qreal OutlineThickness = 17.0 * BaseSize / 256;
 constexpr QColor Ink(15, 15, 15);
 constexpr QColor Paper(247, 247, 247);
 
@@ -32,21 +32,18 @@ void line(QPainterPath &path, std::initializer_list<QPointF> points) {
     for (; point != points.end(); ++point) path.lineTo(*point);
 }
 
-void drawArrow(QPainter &painter, const QPainterPath &outline, const Palette &palette) {
+void drawBadgeArrow(QPainter &painter, const Palette &palette, qreal scale) {
+    QPainterPath outline;
+    line(outline, {{2, 2}, {22, 14}, {13, 15}, {17, 21},
+                   {12, 23}, {8, 17}, {2, 21}});
+    outline.closeSubpath();
+    outline = QTransform::fromScale(scale, scale).map(outline);
     // Inset the fill to keep the silhouette and tip in place.
     QPainterPathStroker border;
     border.setWidth(2 * OutlineThickness);
     border.setJoinStyle(Qt::MiterJoin);
     painter.fillPath(outline, palette.outline);
     painter.fillPath(outline.subtracted(border.createStroke(outline)), palette.fill);
-}
-
-void drawBadgeArrow(QPainter &painter, const Palette &palette, qreal scale) {
-    QPainterPath outline;
-    line(outline, {{2, 2}, {22, 14}, {13, 15}, {17, 21},
-                   {12, 23}, {8, 17}, {2, 21}});
-    outline.closeSubpath();
-    drawArrow(painter, QTransform::fromScale(scale, scale).map(outline), palette);
 }
 
 void drawGlyph(QPainter &painter, const QPainterPath &path, const Palette &palette) {
@@ -158,7 +155,7 @@ QPainterPath resizeGlyph(const Kind &direction) {
 }
 
 QPoint logicalHotspot(const Kind &kind) {
-    if (kind == "left_ptr" || kind == "context-menu" || kind == "copy" ||
+    if (kind == "context-menu" || kind == "copy" ||
         kind == "alias" || kind == "help" || kind == "progress") return {2, 2};
     if (kind == "hand2") return {6, 3};
     return {12, 12};
@@ -174,17 +171,7 @@ QImage render(const Kind &kind, int size, int frame, int padding, const Palette 
     painter.translate(padding, padding);
     painter.scale(scale, scale);
     QPainterPath path;
-    if (kind == "left_ptr") {
-        const QPointF tip{2, 2};
-        const QPointF axis = QLineF(0, 0, 1, 2).unitVector().p2();
-        const QPointF across{axis.y(), -axis.x()};
-        const QPointF shoulders = tip + axis * 20.15;
-        const QPointF neck = tip + axis * 18.95;
-        line(path, {tip, shoulders + across * 10.075, neck + across * 3.15,
-                    neck - across * 3.15, shoulders - across * 10.075});
-        path.closeSubpath();
-        drawArrow(painter, path, palette);
-    } else if (kind == "hand2") {
+    if (kind == "hand2") {
         // Short creases make the bent fingers readable at the native size.
         QPainterPath creases;
         line(creases, {{11.65, 8.8}, {12.55, 9.7}, {13.15, 11.65}});
@@ -276,11 +263,11 @@ bool writeCursor(const QString &filename, const Kind &kind, const Palette &palet
     auto *images = XcursorImagesCreate(4 * frames);
     if (!images) return false;
     const QPoint hotspot = logicalHotspot(kind);
-    // Larger silhouettes need extra canvas while keeping the nominal size matched to the theme.
-    const bool straightResize = kind.endsWith("-resize") && kind.chopped(7).size() == 1;
-    const bool extendedCanvas = kind == "left_ptr" || straightResize;
+    // Leave room for the resize outlines, especially the rotated corners.
+    const bool resize = kind.endsWith("-resize");
+    const int basePadding = resize && kind.chopped(7).size() == 1 ? StraightResizePadding : int(resize);
     for (int size : sizes) {
-        const int padding = extendedCanvas ? ExtendedCanvasPadding * size / BaseSize : 0;
+        const int padding = basePadding * size / BaseSize;
         for (int frame = 0; frame < frames; ++frame) {
             const int extent = size + 2 * padding;
             auto *image = XcursorImageCreate(extent, extent);
@@ -305,21 +292,25 @@ bool writeCursor(const QString &filename, const Kind &kind, const Palette &palet
 }
 } // namespace
 
-bool createOmarchyCursorPack(const QString &directory, bool light, QString *error) {
+bool createOmarchyCursorPack(const QString &directory, const QString &pointerSource, bool light, QString *error) {
     if (directory.isEmpty()) { *error = "Missing cursor pack output directory"; return false; }
     const QString cursors = directory + "/cursors";
     if (!QDir().mkpath(cursors)) { *error = "Cannot create " + cursors; return false; }
     QFile index(directory + "/index.theme");
     const QByteArray name = light ? "Omarchy Terminal Light" : "Omarchy Terminal";
     const QByteArray metadata = "[Icon Theme]\nName=" + name + "\n"
-        "Comment=Original monochrome terminal-style cursor pack by Cursora\nX-Cursora-DefaultSize=24\n";
+        "Comment=Terminal-style cursors with the Bibata Original pointer\nX-Cursora-DefaultSize=24\n";
     if (!index.open(QIODevice::WriteOnly) || index.write(metadata) != metadata.size()) {
         *error = "Cannot write " + index.fileName(); return false;
     }
     index.close();
+    if (!QFile::copy(pointerSource, cursors + "/left_ptr")) {
+        *error = "Cannot copy the Bibata Original pointer from " + pointerSource;
+        return false;
+    }
     const Palette palette = light ? Palette{Paper, Ink} : Palette{Ink, Paper};
     const QList<Kind> shapes{
-        "left_ptr", "hand2", "grab", "grabbing", "xterm", "vertical-text", "crosshair", "cell",
+        "hand2", "grab", "grabbing", "xterm", "vertical-text", "crosshair", "cell",
         "move", "watch", "progress", "not-allowed", "zoom-in", "zoom-out", "e-resize", "se-resize",
         "s-resize", "sw-resize", "w-resize", "nw-resize", "n-resize", "ne-resize", "ew-resize",
         "ns-resize", "nwse-resize", "nesw-resize", "col-resize", "row-resize", "context-menu", "copy", "alias", "help"

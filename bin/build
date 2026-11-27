@@ -6,8 +6,23 @@ cd "$ROOT/build"
 qmake6 "$ROOT/cursora.pro"
 make -j"$(nproc)"
 "$ROOT/bin/prepare-themes"
-QT_QPA_PLATFORM=offscreen ./cursora monochrome-themes "$ROOT/build/themes"
-QT_QPA_PLATFORM=offscreen ./cursora build-omarchy-pack "$ROOT/build/themes/Cursora-Omarchy-Terminal"
-QT_QPA_PLATFORM=offscreen ./cursora build-omarchy-pack "$ROOT/build/themes/Cursora-Omarchy-Terminal-Light" --light
-cp "$ROOT/LICENSE" "$ROOT/build/themes/Cursora-Omarchy-Terminal/COPYING"
-cp "$ROOT/LICENSE" "$ROOT/build/themes/Cursora-Omarchy-Terminal-Light/COPYING"
+themes="$ROOT/build/themes"
+QT_QPA_PLATFORM=offscreen ./cursora monochrome-themes "$themes"
+for tone in Black White; do
+    bibata="$themes/Cursora-Bibata-Original-$tone"
+    terminal="$themes/Cursora-Omarchy-Terminal"
+    set --
+    if [ "$tone" = White ]; then
+        terminal="$terminal-Light"
+        set -- --light
+    fi
+    QT_QPA_PLATFORM=offscreen ./cursora build-omarchy-pack "$terminal" "$bibata/cursors/left_ptr" "$@"
+    cp "$ROOT/LICENSE" "$terminal/COPYING"
+    cp "$bibata/COPYING" "$terminal/COPYING-Bibata"
+    cat > "$terminal/NOTICE" <<'EOF'
+The left_ptr cursor and its aliases use Bibata Original 2.0.7 by ful1e5 and contributors.
+The pointer is distributed under GPL-3.0-only. See COPYING-Bibata and https://github.com/ful1e5/Bibata_Cursor.
+The pinned Bibata release and source archives are shipped in /usr/share/cursora/sources.
+The other Omarchy Terminal cursors use the MIT license. See COPYING and omarchycursor.cpp.
+EOF
+done

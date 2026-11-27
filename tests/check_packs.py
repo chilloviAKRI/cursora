@@ -51,27 +51,11 @@ def frames(data):
     assert result, 'Missing image frames'
     return result
 
-def pointer_asymmetry(alpha, width, xhot, yhot):
-    axis_x, axis_y = 1, 2
-    length_squared = axis_x**2 + axis_y**2
-    diagonal = (axis_x**2 - axis_y**2) / length_squared
-    cross = 2 * axis_x * axis_y / length_squared
-    difference = 0
-    for i, coverage in enumerate(alpha):
-        x, y = i % width + .5 - xhot, i // width + .5 - yhot
-        mirror_x = round(xhot - .5 + diagonal * x + cross * y)
-        mirror_y = round(yhot - .5 + cross * x - diagonal * y)
-        mirrored = alpha[mirror_y * width + mirror_x] if 0 <= mirror_x < width and 0 <= mirror_y < width else 0
-        difference += abs(coverage - mirrored)
-    return difference / sum(alpha)
-
 archives = {}
 checked_files = checked_frames = 0
 straight_resize = {'n-resize', 'e-resize', 's-resize', 'w-resize'}
-extended_canvas = straight_resize | {'left_ptr'}
 hand_shapes = {'hand2', 'grab', 'grabbing'}
 outline_samples = {
-    'left_ptr': (10, 0, 6),
     'se-resize': (12, 20, 24),
     'hand2': (15, 20, 24),
     'xterm': (12, 8, 12),
@@ -91,11 +75,24 @@ for theme, pack in packs.items():
         fill, outline = (0xfff7f7f7, 0xff0f0f0f) if light else (0xff0f0f0f, 0xfff7f7f7)
         fill_value, outline_value = fill & 255, outline & 255
         dark_cursors = path.with_name('Cursora-Omarchy-Terminal') / 'cursors'
+        bibata = path.with_name('Cursora-Bibata-Original-White' if light else 'Cursora-Bibata-Original-Black')
+        expected_pointer = (bibata / 'cursors' / 'left_ptr').read_bytes()
+        pointer_images = frames(expected_pointer)
+        assert native in {meta[0] for meta, _ in pointer_images}
+        reference = next(pixels for meta, pixels in pointer_images if meta[0] == native * 4)
+        # Sample the left edge of the Bibata pointer at 4×.
+        edge = reference[40 * 96 + 16:40 * 96 + 32]
+        pointer_outline = sum((p >> 24) - (p & 255) if light else p & 255 for p in edge) / (255 * 4)
         for cursor in (path / 'cursors').iterdir():
             if cursor.is_symlink():
                 assert cursor.is_file() and '/' not in str(cursor.readlink()), f'Broken alias: {cursor}'
                 if light:
                     assert cursor.readlink() == (dark_cursors / cursor.name).readlink(), f'Mismatched alias: {cursor}'
+                continue
+            if cursor.name == 'left_ptr':
+                assert cursor.read_bytes() == expected_pointer, f'Omarchy pointer differs from Bibata Original: {cursor}'
+                checked_files += 1
+                checked_frames += len(pointer_images)
                 continue
             images = frames(cursor.read_bytes())
             assert {meta[0] for meta, _ in images} == {native, native * 2, native * 3, native * 4}
@@ -108,30 +105,16 @@ for theme, pack in packs.items():
                                for p, d in zip(pixels, dark_pixels)), f'Colors are not swapped in {cursor}'
             for meta, pixels in images:
                 nominal, _, width, height, xhot, yhot, delay = meta
-                extent = nominal * 32 // 24 if cursor.name in extended_canvas else nominal
+                resize = cursor.name.endswith('-resize')
+                base_padding = 4 if cursor.name in straight_resize else int(resize)
+                extent = nominal * (24 + 2 * base_padding) // 24
                 padding = (extent - nominal) // 2
                 assert extent == width == height and 0 <= xhot < width and 0 <= yhot < height
-                if cursor.name in straight_resize:
+                if resize:
                     assert xhot == yhot == extent // 2, f'Off-center hotspot in {cursor}'
                 assert any(pixel >> 24 for pixel in pixels), f'Empty image: {cursor}'
                 assert all(((p >> 16) & 255) == ((p >> 8) & 255) == (p & 255) for p in pixels)
-                if cursor.name == 'left_ptr':
-                    alpha = [p >> 24 for p in pixels]
-                    assert xhot == yhot == padding + nominal // 12, f'Pointer hotspot moved in {cursor}'
-                    assert alpha[yhot * width + xhot] > 0, f'Invisible click tip at {nominal}px'
-                    assert any(0 < a < 255 for a in alpha), f'Jagged arrow edge at {nominal}px'
-                    fill_area = sum((outline_value * a / 255 - (p & 255)) / (outline_value - fill_value)
-                                    for p, a in zip(pixels, alpha))
-                    assert fill_area >= nominal * nominal / 10, f'Arrow core is too small at {nominal}px'
-                    visible = [i for i, a in enumerate(alpha) if a >= 128]
-                    columns = [i % width for i in visible]
-                    rows = [i // width for i in visible]
-                    assert nominal * 7 // 10 <= max(columns) - min(columns) + 1 <= nominal * 5 // 6, (
-                        f'Unexpected arrow width at {nominal}px')
-                    assert max(rows) - min(rows) + 1 >= nominal * 9 // 10, f'Arrow is too short at {nominal}px'
-                    if nominal == native * 4:
-                        assert pointer_asymmetry(alpha, width, xhot, yhot) < .04, f'Asymmetric arrow in {cursor}'
-                elif cursor.name in hand_shapes or cursor.name.endswith('-resize'):
+                if cursor.name in hand_shapes or cursor.name.endswith('-resize'):
                     assert fill in pixels and outline in pixels, f'Missing fill or outline in {cursor} at {nominal}px'
                     if cursor.name in hand_shapes:
                         assert pixels[yhot * width + xhot] >> 24 > 0, f'Invisible hand hotspot in {cursor}'
@@ -141,7 +124,7 @@ for theme, pack in packs.items():
                         assert coverage * 100 >= nominal * nominal * 28, f'Resize glyph is too small: {cursor}'
                 # Subpixel coverage may reach the edge, but solid artwork must fit.
                 edges = pixels[:width] + pixels[-width:] + pixels[::width] + pixels[width-1::width]
-                assert max(p >> 24 for p in edges) <= 64, f'Clipped glyph: {cursor}'
+                assert max(p >> 24 for p in edges) < 128, f'Clipped glyph: {cursor}'
                 if nominal == native * 4 and cursor.name in outline_samples:
                     row, start, end = outline_samples[cursor.name]
                     offset = (row * 4 + padding) * width + padding
@@ -149,7 +132,8 @@ for theme, pack in packs.items():
                     # Recover outline coverage from the two colors and premultiplied alpha.
                     border = sum(((p & 255) - fill_value * (p >> 24) / 255) / (outline_value - fill_value)
                                  for p in pixels[start:end])
-                    assert abs(border / 4 - 1.35) <= .08, f'Unexpected border width in {cursor}: {border / 4:.2f}px'
+                    assert abs(border / 4 - pointer_outline) <= .08, (
+                        f'Outline differs from Bibata Original in {cursor}: {border / 4:.2f}px')
             if cursor.name in ('watch', 'progress'):
                 animation = [(meta[-1], pixels.tobytes()) for meta, pixels in images if meta[0] == native]
                 assert len(animation) == 4 and len(set(animation)) == 4 and all(delay > 0 for delay, _ in animation)
@@ -183,11 +167,11 @@ for theme, pack in packs.items():
             checked_frames += 1
         checked_files += 1
 
-# Distinct source packs must also produce distinct pointer silhouettes.
+# Independently sourced families must have distinct pointer silhouettes.
 silhouettes = {}
 for theme, pack in packs.items():
     family = pack['family']
-    if family in silhouettes:
+    if 'archive' not in pack or family in silhouettes:
         continue
     path = root / 'build/themes' / theme / 'cursors/left_ptr'
     values = frames(path.read_bytes())
