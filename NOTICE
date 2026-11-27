@@ -1,9 +1,10 @@
 Theme and translation utilities are adapted from the Omarchy App Templates,
 based on Omacut and Monologue (MIT, Copyright David Heinemeier Hansson).
 
-Omarchy Terminal uses the Bibata Original 2.0.7 artwork for its primary pointer
-(GPL-3.0-only, see COPYING-Bibata within each theme). Its other cursor artwork
-is original to Cursora and uses the MIT license. Its sources are in src/omarchycursor.cpp.
+Omarchy Terminal adapts the Bibata Original 2.0.7 arrow for its primary pointer
+and the cursors with arrow badges (GPL-3.0-only, see COPYING-Bibata and NOTICE
+within each theme). The other cursor artwork is original to Cursora under the
+MIT license. The generator is in src/omarchycursor.cpp.
 
 Bundled third-party cursor packs:
 Bibata Modern and Original 2.0.7, by ful1e5 and contributors — GPL-3.0-only

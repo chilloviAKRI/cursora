@@ -6,7 +6,7 @@
 #include <QMap>
 #include <QPainter>
 #include <QPainterPath>
-#include <QPainterPathStroker>
+#include <QSvgRenderer>
 #include <QTransform>
 #include <cstring>
 #include <filesystem>
@@ -16,6 +16,11 @@ namespace {
 using Kind = QByteArray;
 constexpr int BaseSize = 24;
 constexpr int StraightResizePadding = 4;
+constexpr qreal MainPointerScale = 1.16;
+constexpr qreal BadgePointerScale = .70;
+constexpr QPoint BibataHotspot{5, 1};
+// Align the vector tip after compensating for the enlarged stroke width.
+constexpr QPointF MainPointerArtHotspot{5.25, 1.9};
 // Bibata Original uses a 17 px outline on a 256 px canvas.
 constexpr qreal OutlineThickness = 17.0 * BaseSize / 256;
 constexpr QColor Ink(15, 15, 15);
@@ -32,18 +37,18 @@ void line(QPainterPath &path, std::initializer_list<QPointF> points) {
     for (; point != points.end(); ++point) path.lineTo(*point);
 }
 
-void drawBadgeArrow(QPainter &painter, const Palette &palette, qreal scale) {
-    QPainterPath outline;
-    line(outline, {{2, 2}, {22, 14}, {13, 15}, {17, 21},
-                   {12, 23}, {8, 17}, {2, 21}});
-    outline.closeSubpath();
-    outline = QTransform::fromScale(scale, scale).map(outline);
-    // Inset the fill to keep the silhouette and tip in place.
-    QPainterPathStroker border;
-    border.setWidth(2 * OutlineThickness);
-    border.setJoinStyle(Qt::MiterJoin);
-    painter.fillPath(outline, palette.outline);
-    painter.fillPath(outline.subtracted(border.createStroke(outline)), palette.fill);
+QByteArray styledPointer(QByteArray svg, const Palette &palette, qreal scale) {
+    svg.replace("#00FF00", palette.fill.name().toLatin1());
+    svg.replace("#0000FF", palette.outline.name().toLatin1());
+    // Keep the outline at its nominal width as the silhouette changes scale.
+    svg.replace("stroke-width=\"17\"", "stroke-width=\"" + QByteArray::number(17.0 / scale) + '"');
+    return svg;
+}
+
+void drawPointer(QPainter &painter, QSvgRenderer &svg, const QPoint &hotspot, const QPointF &artHotspot, qreal scale) {
+    const qreal extent = BaseSize * scale;
+    const QPointF origin = QPointF(hotspot) - artHotspot * scale;
+    svg.render(&painter, QRectF(origin, QSizeF(extent, extent)));
 }
 
 void drawGlyph(QPainter &painter, const QPainterPath &path, const Palette &palette) {
@@ -155,13 +160,14 @@ QPainterPath resizeGlyph(const Kind &direction) {
 }
 
 QPoint logicalHotspot(const Kind &kind) {
+    if (kind == "left_ptr") return BibataHotspot;
     if (kind == "context-menu" || kind == "copy" ||
         kind == "alias" || kind == "help" || kind == "progress") return {2, 2};
     if (kind == "hand2") return {6, 3};
     return {12, 12};
 }
 
-QImage render(const Kind &kind, int size, int frame, int padding, const Palette &palette) {
+QImage render(const Kind &kind, int size, int frame, int padding, const Palette &palette, QSvgRenderer &pointer) {
     const int extent = size + 2 * padding;
     QImage image(extent, extent, QImage::Format_ARGB32_Premultiplied);
     image.fill(Qt::transparent);
@@ -171,7 +177,9 @@ QImage render(const Kind &kind, int size, int frame, int padding, const Palette 
     painter.translate(padding, padding);
     painter.scale(scale, scale);
     QPainterPath path;
-    if (kind == "hand2") {
+    if (kind == "left_ptr") {
+        drawPointer(painter, pointer, logicalHotspot(kind), MainPointerArtHotspot, MainPointerScale);
+    } else if (kind == "hand2") {
         // Short creases make the bent fingers readable at the native size.
         QPainterPath creases;
         line(creases, {{11.65, 8.8}, {12.55, 9.7}, {13.15, 11.65}});
@@ -207,7 +215,7 @@ QImage render(const Kind &kind, int size, int frame, int padding, const Palette 
     } else if (kind == "watch" || kind == "progress") {
         QTransform badge;
         if (kind == "progress") {
-            drawBadgeArrow(painter, palette, .66);
+            drawPointer(painter, pointer, logicalHotspot(kind), BibataHotspot, BadgePointerScale);
             badge.translate(12, 12);
             badge.scale(.45, .45);
         }
@@ -231,7 +239,8 @@ QImage render(const Kind &kind, int size, int frame, int padding, const Palette 
         }
         drawGlyph(painter, path, palette);
     } else {
-        drawBadgeArrow(painter, palette, .75);
+        drawPointer(painter, pointer, logicalHotspot(kind), BibataHotspot, BadgePointerScale);
+        painter.translate(.8, .5);
         path.addRect(QRectF(13, 13, 8, 8));
         drawOutlinedShape(painter, path, palette);
         QPainterPath badge;
@@ -255,7 +264,7 @@ QImage render(const Kind &kind, int size, int frame, int padding, const Palette 
     return image;
 }
 
-bool writeCursor(const QString &filename, const Kind &kind, const Palette &palette) {
+bool writeCursor(const QString &filename, const Kind &kind, const Palette &palette, QSvgRenderer &pointer) {
     // Rasterize each resolution directly from the artwork. Keep a matching
     // bitmap for 1x, 2x, 3x and 4x output scales.
     constexpr int sizes[]{24, 48, 72, 96};
@@ -265,7 +274,8 @@ bool writeCursor(const QString &filename, const Kind &kind, const Palette &palet
     const QPoint hotspot = logicalHotspot(kind);
     // Leave room for the resize outlines, especially the rotated corners.
     const bool resize = kind.endsWith("-resize");
-    const int basePadding = resize && kind.chopped(7).size() == 1 ? StraightResizePadding : int(resize);
+    const int resizePadding = resize && kind.chopped(7).size() == 1 ? StraightResizePadding : int(resize);
+    const int basePadding = kind == "left_ptr" ? 3 : resizePadding;
     for (int size : sizes) {
         const int padding = basePadding * size / BaseSize;
         for (int frame = 0; frame < frames; ++frame) {
@@ -276,12 +286,10 @@ bool writeCursor(const QString &filename, const Kind &kind, const Palette &palet
                 return false;
             }
             image->size = size;
-            const qreal artScale = kind == "progress" ? .66 :
-                kind == "context-menu" || kind == "copy" || kind == "alias" || kind == "help" ? .75 : 1;
-            image->xhot = padding + qRound(hotspot.x() * artScale * size / BaseSize);
-            image->yhot = padding + qRound(hotspot.y() * artScale * size / BaseSize);
+            image->xhot = padding + qRound(qreal(hotspot.x()) * size / BaseSize);
+            image->yhot = padding + qRound(qreal(hotspot.y()) * size / BaseSize);
             image->delay = frames > 1 ? 120 : 0;
-            const QImage pixels = render(kind, size, frame, padding, palette);
+            const QImage pixels = render(kind, size, frame, padding, palette, pointer);
             std::memcpy(image->pixels, pixels.constBits(), pixels.sizeInBytes());
             images->images[images->nimage++] = image;
         }
@@ -294,6 +302,19 @@ bool writeCursor(const QString &filename, const Kind &kind, const Palette &palet
 
 bool createOmarchyCursorPack(const QString &directory, const QString &pointerSource, bool light, QString *error) {
     if (directory.isEmpty()) { *error = "Missing cursor pack output directory"; return false; }
+    QFile source(pointerSource);
+    if (!source.open(QIODevice::ReadOnly)) {
+        *error = "Cannot read the Bibata Original SVG from " + pointerSource;
+        return false;
+    }
+    const Palette palette = light ? Palette{Paper, Ink} : Palette{Ink, Paper};
+    const QByteArray svg = source.readAll();
+    QSvgRenderer mainPointer(styledPointer(svg, palette, MainPointerScale));
+    QSvgRenderer badgePointer(styledPointer(svg, palette, BadgePointerScale));
+    if (!mainPointer.isValid() || !badgePointer.isValid()) {
+        *error = "Invalid Bibata Original SVG: " + pointerSource;
+        return false;
+    }
     const QString cursors = directory + "/cursors";
     if (!QDir().mkpath(cursors)) { *error = "Cannot create " + cursors; return false; }
     QFile index(directory + "/index.theme");
@@ -304,20 +325,16 @@ bool createOmarchyCursorPack(const QString &directory, const QString &pointerSou
         *error = "Cannot write " + index.fileName(); return false;
     }
     index.close();
-    if (!QFile::copy(pointerSource, cursors + "/left_ptr")) {
-        *error = "Cannot copy the Bibata Original pointer from " + pointerSource;
-        return false;
-    }
-    const Palette palette = light ? Palette{Paper, Ink} : Palette{Ink, Paper};
     const QList<Kind> shapes{
-        "hand2", "grab", "grabbing", "xterm", "vertical-text", "crosshair", "cell",
+        "left_ptr", "hand2", "grab", "grabbing", "xterm", "vertical-text", "crosshair", "cell",
         "move", "watch", "progress", "not-allowed", "zoom-in", "zoom-out", "e-resize", "se-resize",
         "s-resize", "sw-resize", "w-resize", "nw-resize", "n-resize", "ne-resize", "ew-resize",
         "ns-resize", "nwse-resize", "nesw-resize", "col-resize", "row-resize", "context-menu", "copy", "alias", "help"
     };
     for (const auto &shape : shapes) {
         const QString path = cursors + "/" + QString::fromLatin1(shape);
-        if (!writeCursor(path, shape, palette)) { *error = "Cannot write " + path; return false; }
+        auto &pointer = shape == "left_ptr" ? mainPointer : badgePointer;
+        if (!writeCursor(path, shape, palette, pointer)) { *error = "Cannot write " + path; return false; }
     }
     const QMap<Kind, Kind> aliases{
         {"default", "left_ptr"}, {"arrow", "left_ptr"}, {"top_left_arrow", "left_ptr"},

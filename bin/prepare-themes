@@ -67,4 +67,7 @@ with tempfile.TemporaryDirectory(prefix='cursor-packs-', dir=root / 'build') as 
             'Cursora modifications (2026): convert cursor pixels to grayscale, rename theme and add aliases where needed.\n'
             'All original shapes, sizes, hotspots, animation frames and timings are retained.\n'
             'Sources and preparation tools: /usr/share/cursora/sources/\n')
+    bibata = packs['Cursora-Bibata-Original-Black']
+    source = extracted[bibata['source']] / bibata['sourceRoot']
+    shutil.copyfile(source / 'svg/groups/original/left_ptr.svg', destination / 'bibata-original-pointer.svg')
 print(f'Prepared {len(packs)} monochrome cursor themes')

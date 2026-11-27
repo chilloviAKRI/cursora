@@ -1,4 +1,4 @@
-QT += core gui qml quick quickcontrols2
+QT += core gui qml quick quickcontrols2 svg
 CONFIG += c++17 release link_pkgconfig
 PKGCONFIG += xcursor
 TARGET = cursora

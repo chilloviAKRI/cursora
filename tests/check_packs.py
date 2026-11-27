@@ -55,7 +55,9 @@ archives = {}
 checked_files = checked_frames = 0
 straight_resize = {'n-resize', 'e-resize', 's-resize', 'w-resize'}
 hand_shapes = {'hand2', 'grab', 'grabbing'}
+arrow_badges = {'progress', 'copy', 'alias', 'help', 'context-menu'}
 outline_samples = {
+    'left_ptr': (10, 0, 9),
     'se-resize': (12, 20, 24),
     'hand2': (15, 20, 24),
     'xterm': (12, 8, 12),
@@ -76,23 +78,18 @@ for theme, pack in packs.items():
         fill_value, outline_value = fill & 255, outline & 255
         dark_cursors = path.with_name('Cursora-Omarchy-Terminal') / 'cursors'
         bibata = path.with_name('Cursora-Bibata-Original-White' if light else 'Cursora-Bibata-Original-Black')
-        expected_pointer = (bibata / 'cursors' / 'left_ptr').read_bytes()
-        pointer_images = frames(expected_pointer)
+        pointer_images = frames((bibata / 'cursors' / 'left_ptr').read_bytes())
         assert native in {meta[0] for meta, _ in pointer_images}
         reference = next(pixels for meta, pixels in pointer_images if meta[0] == native * 4)
         # Sample the left edge of the Bibata pointer at 4×.
         edge = reference[40 * 96 + 16:40 * 96 + 32]
         pointer_outline = sum((p >> 24) - (p & 255) if light else p & 255 for p in edge) / (255 * 4)
+        badge_arrows = {}
         for cursor in (path / 'cursors').iterdir():
             if cursor.is_symlink():
                 assert cursor.is_file() and '/' not in str(cursor.readlink()), f'Broken alias: {cursor}'
                 if light:
                     assert cursor.readlink() == (dark_cursors / cursor.name).readlink(), f'Mismatched alias: {cursor}'
-                continue
-            if cursor.name == 'left_ptr':
-                assert cursor.read_bytes() == expected_pointer, f'Omarchy pointer differs from Bibata Original: {cursor}'
-                checked_files += 1
-                checked_frames += len(pointer_images)
                 continue
             images = frames(cursor.read_bytes())
             assert {meta[0] for meta, _ in images} == {native, native * 2, native * 3, native * 4}
@@ -106,7 +103,7 @@ for theme, pack in packs.items():
             for meta, pixels in images:
                 nominal, _, width, height, xhot, yhot, delay = meta
                 resize = cursor.name.endswith('-resize')
-                base_padding = 4 if cursor.name in straight_resize else int(resize)
+                base_padding = 3 if cursor.name == 'left_ptr' else 4 if cursor.name in straight_resize else int(resize)
                 extent = nominal * (24 + 2 * base_padding) // 24
                 padding = (extent - nominal) // 2
                 assert extent == width == height and 0 <= xhot < width and 0 <= yhot < height
@@ -114,6 +111,16 @@ for theme, pack in packs.items():
                     assert xhot == yhot == extent // 2, f'Off-center hotspot in {cursor}'
                 assert any(pixel >> 24 for pixel in pixels), f'Empty image: {cursor}'
                 assert all(((p >> 16) & 255) == ((p >> 8) & 255) == (p & 255) for p in pixels)
+                if cursor.name == 'left_ptr' or cursor.name in arrow_badges:
+                    assert pixels[yhot * width + xhot] >> 24 > 0, f'Invisible pointer tip in {cursor} at {nominal}px'
+                if cursor.name == 'left_ptr' and nominal == native * 4:
+                    original_area = sum(p >> 24 for p in reference)
+                    assert 1.15 <= sum(p >> 24 for p in pixels) / original_area <= 1.45, (
+                        f'Unexpected pointer scale in {cursor}')
+                if cursor.name in arrow_badges:
+                    # Above the badge, each state should show the same small arrow.
+                    arrow = pixels[:width * (nominal * 11 // native)]
+                    assert arrow == badge_arrows.setdefault(nominal, arrow), f'Mismatched badge arrow in {cursor}'
                 if cursor.name in hand_shapes or cursor.name.endswith('-resize'):
                     assert fill in pixels and outline in pixels, f'Missing fill or outline in {cursor} at {nominal}px'
                     if cursor.name in hand_shapes:
