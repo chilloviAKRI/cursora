@@ -52,7 +52,7 @@ def frames(data):
     return result
 
 def pointer_asymmetry(alpha, width, xhot, yhot):
-    axis_x, axis_y = 13, 15
+    axis_x, axis_y = 1, 2
     length_squared = axis_x**2 + axis_y**2
     diagonal = (axis_x**2 - axis_y**2) / length_squared
     cross = 2 * axis_x * axis_y / length_squared
@@ -126,9 +126,9 @@ for theme, pack in packs.items():
                     visible = [i for i, a in enumerate(alpha) if a >= 128]
                     columns = [i % width for i in visible]
                     rows = [i // width for i in visible]
-                    assert nominal * 9 // 10 <= max(columns) - min(columns) + 1 <= nominal, (
+                    assert nominal * 7 // 10 <= max(columns) - min(columns) + 1 <= nominal * 5 // 6, (
                         f'Unexpected arrow width at {nominal}px')
-                    assert max(rows) - min(rows) + 1 >= nominal * 23 // 24, f'Arrow is too short at {nominal}px'
+                    assert max(rows) - min(rows) + 1 >= nominal * 9 // 10, f'Arrow is too short at {nominal}px'
                     if nominal == native * 4:
                         assert pointer_asymmetry(alpha, width, xhot, yhot) < .04, f'Asymmetric arrow in {cursor}'
                 elif cursor.name in hand_shapes or cursor.name.endswith('-resize'):

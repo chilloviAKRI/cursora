@@ -176,14 +176,12 @@ QImage render(const Kind &kind, int size, int frame, int padding, const Palette 
     QPainterPath path;
     if (kind == "left_ptr") {
         const QPointF tip{2, 2};
-        const QPointF axis = QLineF(0, 0, 13, 15).unitVector().p2();
+        const QPointF axis = QLineF(0, 0, 1, 2).unitVector().p2();
         const QPointF across{axis.y(), -axis.x()};
-        const QPointF shoulders = tip + axis * 20.9;
-        const QPointF neck = tip + axis * 19.15;
-        const QPointF end = tip + axis * 27.7;
-        // Use the same angular shoulder and flared tail on both sides.
-        line(path, {tip, shoulders + across * 12.3, neck + across * 3.2, end + across * 5.6,
-                    end - across * 5.6, neck - across * 3.2, shoulders - across * 12.3});
+        const QPointF shoulders = tip + axis * 20.15;
+        const QPointF neck = tip + axis * 18.95;
+        line(path, {tip, shoulders + across * 10.075, neck + across * 3.15,
+                    neck - across * 3.15, shoulders - across * 10.075});
         path.closeSubpath();
         drawArrow(painter, path, palette);
     } else if (kind == "hand2") {
