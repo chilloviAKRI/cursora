@@ -112,10 +112,10 @@ void Backend::rescan() {
     std::sort(themes.begin(), themes.end(), [](const QVariant &a, const QVariant &b) {
         const auto x = a.toMap(), y = b.toMap();
         if (x["builtin"].toBool() != y["builtin"].toBool()) return x["builtin"].toBool();
-        if (x["id"] == "Cursora-Omarchy-Terminal") return y["id"] != x["id"];
-        if (y["id"] == "Cursora-Omarchy-Terminal") return false;
         const auto xFamily = x["pack"].toMap().value("family").toString();
         const auto yFamily = y["pack"].toMap().value("family").toString();
+        const bool xTerminal = xFamily == "Omarchy Terminal", yTerminal = yFamily == "Omarchy Terminal";
+        if (xTerminal != yTerminal) return xTerminal;
         const int familyOrder = QString::localeAwareCompare(xFamily, yFamily);
         if (familyOrder != 0) return familyOrder < 0;
         return QString::localeAwareCompare(x["name"].toString(), y["name"].toString()) < 0;

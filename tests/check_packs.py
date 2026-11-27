@@ -54,6 +54,7 @@ def frames(data):
 archives = {}
 checked_files = checked_frames = 0
 straight_resize = {'n-resize', 'e-resize', 's-resize', 'w-resize'}
+hand_shapes = {'hand2', 'grab', 'grabbing'}
 for theme, pack in packs.items():
     path = root / 'build/themes' / theme
     assert (path / 'COPYING').is_file(), f'Missing license: {theme}'
@@ -64,12 +65,24 @@ for theme, pack in packs.items():
         index = configparser.ConfigParser()
         index.read(path / 'index.theme')
         native = index['Icon Theme'].getint('X-Cursora-DefaultSize')
+        light = pack.get('tone') == 'white'
+        fill, outline = (0xfff7f7f7, 0xff0f0f0f) if light else (0xff0f0f0f, 0xfff7f7f7)
+        dark_cursors = path.with_name('Cursora-Omarchy-Terminal') / 'cursors'
         for cursor in (path / 'cursors').iterdir():
             if cursor.is_symlink():
                 assert cursor.is_file() and '/' not in str(cursor.readlink()), f'Broken alias: {cursor}'
+                if light:
+                    assert cursor.readlink() == (dark_cursors / cursor.name).readlink(), f'Mismatched alias: {cursor}'
                 continue
             images = frames(cursor.read_bytes())
             assert {meta[0] for meta, _ in images} == {native, native * 2, native * 3, native * 4}
+            if light:
+                original = frames((dark_cursors / cursor.name).read_bytes())
+                for (meta, pixels), (dark_meta, dark_pixels) in zip(images, original, strict=True):
+                    assert meta == dark_meta, f'Mismatched frame metadata in {cursor}'
+                    assert all(p >> 24 == d >> 24 for p, d in zip(pixels, dark_pixels)), f'Mismatched alpha in {cursor}'
+                    assert all(abs((p & 255) + (d & 255) - (p >> 24) * 262 / 255) <= 2
+                               for p, d in zip(pixels, dark_pixels)), f'Colors are not swapped in {cursor}'
             for meta, pixels in images:
                 nominal, _, width, height, xhot, yhot, delay = meta
                 extent = nominal * 32 // 24 if cursor.name in straight_resize else nominal
@@ -81,15 +94,13 @@ for theme, pack in packs.items():
                     alpha = [p >> 24 for p in pixels]
                     assert alpha[yhot * width + xhot] > 0, f'Invisible click tip at {nominal}px'
                     assert any(0 < a < 255 for a in alpha), f'Jagged arrow edge at {nominal}px'
-                    assert pixels.count(0xff0f0f0f) >= nominal * nominal // 10, f'Arrow core is too small at {nominal}px'
-                elif cursor.name == 'hand2' or cursor.name.endswith('-resize'):
-                    assert 0xff0f0f0f in pixels, f'Missing dark fill in {cursor} at {nominal}px'
-                    assert any((p >> 24) >= 100 and (p & 255) * 10 >= (p >> 24) * 9 for p in pixels), (
-                        f'Missing bright outline in {cursor} at {nominal}px')
+                    assert pixels.count(fill) >= nominal * nominal // 10, f'Arrow core is too small at {nominal}px'
+                elif cursor.name in hand_shapes or cursor.name.endswith('-resize'):
+                    assert fill in pixels and outline in pixels, f'Missing fill or outline in {cursor} at {nominal}px'
                     assert all(((p >> 16) & 255) == ((p >> 8) & 255) == (p & 255) for p in pixels)
-                    if cursor.name == 'hand2':
-                        assert pixels[yhot * width + xhot] >> 24 > 0, 'Link hotspot misses the fingertip'
-                        assert any(0 < (p >> 24) < 255 for p in pixels), f'Jagged link edge at {nominal}px'
+                    if cursor.name in hand_shapes:
+                        assert pixels[yhot * width + xhot] >> 24 > 0, f'Invisible hand hotspot in {cursor}'
+                        assert any(0 < (p >> 24) < 255 for p in pixels), f'Jagged hand edge in {cursor} at {nominal}px'
                     elif nominal == native:
                         coverage = sum((p >> 24) >= 128 for p in pixels)
                         assert coverage * 100 >= nominal * nominal * 28, f'Resize glyph is too small: {cursor}'

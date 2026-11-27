@@ -8,4 +8,6 @@ make -j"$(nproc)"
 "$ROOT/bin/prepare-themes"
 QT_QPA_PLATFORM=offscreen ./cursora monochrome-themes "$ROOT/build/themes"
 QT_QPA_PLATFORM=offscreen ./cursora build-omarchy-pack "$ROOT/build/themes/Cursora-Omarchy-Terminal"
+QT_QPA_PLATFORM=offscreen ./cursora build-omarchy-pack "$ROOT/build/themes/Cursora-Omarchy-Terminal-Light" --light
 cp "$ROOT/LICENSE" "$ROOT/build/themes/Cursora-Omarchy-Terminal/COPYING"
+cp "$ROOT/LICENSE" "$ROOT/build/themes/Cursora-Omarchy-Terminal-Light/COPYING"

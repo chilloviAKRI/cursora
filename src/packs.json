@@ -1,5 +1,6 @@
 {
   "Cursora-Omarchy-Terminal": {"family":"Omarchy Terminal","license":"MIT"},
+  "Cursora-Omarchy-Terminal-Light": {"family":"Omarchy Terminal","tone":"white","license":"MIT"},
   "Cursora-Bibata-Black": {"family":"Bibata","tone":"black","archive":"Bibata-Modern-Classic.tar.xz","member":"Bibata-Modern-Classic","source":"Bibata-source.tar.gz","sourceRoot":"Bibata_Cursor-2.0.7","url":"https://github.com/ful1e5/Bibata_Cursor","version":"2.0.7","license":"GPL-3.0-only"},
   "Cursora-Bibata-White": {"family":"Bibata","tone":"white","archive":"Bibata-Modern-Ice.tar.xz","member":"Bibata-Modern-Ice","source":"Bibata-source.tar.gz","sourceRoot":"Bibata_Cursor-2.0.7","url":"https://github.com/ful1e5/Bibata_Cursor","version":"2.0.7","license":"GPL-3.0-only"},
   "Cursora-Phinger-Black": {"family":"Phinger","tone":"black","archive":"phinger-cursors-variants.tar.bz2","member":"phinger-cursors-dark","source":"Phinger-source.tar.gz","sourceRoot":"phinger-cursors-2.2","url":"https://github.com/phisch/phinger-cursors","version":"2.2","license":"CC-BY-SA-4.0"},

@@ -18,39 +18,50 @@ constexpr int StraightResizePadding = 4;
 constexpr QColor Ink(15, 15, 15);
 constexpr QColor Paper(247, 247, 247);
 
+struct Palette {
+    QColor fill;
+    QColor outline;
+};
+
 void line(QPainterPath &path, std::initializer_list<QPointF> points) {
     auto point = points.begin();
     path.moveTo(*point++);
     for (; point != points.end(); ++point) path.lineTo(*point);
 }
 
-void drawArrow(QPainter &painter) {
+void drawArrow(QPainter &painter, const Palette &palette) {
     // The nested shapes give the pointer one outline without a shadow.
     QPainterPath outline, body;
     line(outline, {{2, 2}, {22, 14}, {13, 15}, {17, 21},
                    {12, 23}, {8, 17}, {2, 21}, {2, 2}});
     line(body, {{4, 5}, {18, 13.25}, {10.5, 14}, {14.75, 20.25},
                 {12.75, 21.25}, {8.75, 14.75}, {4, 18}, {4, 5}});
-    painter.fillPath(outline, Paper);
-    painter.fillPath(body, Ink);
+    painter.fillPath(outline, palette.outline);
+    painter.fillPath(body, palette.fill);
 }
 
-void drawGlyph(QPainter &painter, const QPainterPath &path, bool filled = false) {
+void drawGlyph(QPainter &painter, const QPainterPath &path, const Palette &palette, bool filled = false) {
     const auto pen = [](QColor color, qreal width) {
         return QPen(color, width, Qt::SolidLine, Qt::SquareCap, Qt::MiterJoin);
     };
     painter.setBrush(Qt::NoBrush);
-    painter.setPen(pen(Paper, 3.2));
+    painter.setPen(pen(palette.outline, 3.2));
     painter.drawPath(path);
-    painter.setPen(filled ? QPen(Qt::NoPen) : pen(Ink, 1.2));
-    if (filled) painter.setBrush(Ink);
+    painter.setPen(filled ? QPen(Qt::NoPen) : pen(palette.fill, 1.2));
+    if (filled) painter.setBrush(palette.fill);
     painter.drawPath(path);
 }
 
-void drawOutlinedShape(QPainter &painter, const QPainterPath &path, qreal outlineWidth,
+void drawOutlinedShape(QPainter &painter, const QPainterPath &path, const Palette &palette, qreal outlineWidth,
                        Qt::PenJoinStyle join) {
-    painter.strokePath(path, QPen(Paper, outlineWidth, Qt::SolidLine, Qt::SquareCap, join));
-    painter.fillPath(path, Ink);
+    painter.strokePath(path, QPen(palette.outline, outlineWidth, Qt::SolidLine, Qt::SquareCap, join));
+    painter.fillPath(path, palette.fill);
+}
+
+void drawHand(QPainter &painter, const QPainterPath &shape, const QPainterPath &creases, const Palette &palette) {
+    painter.setRenderHint(QPainter::Antialiasing);
+    drawOutlinedShape(painter, shape, palette, 3.2, Qt::MiterJoin);
+    painter.strokePath(creases, QPen(palette.outline, .9, Qt::SolidLine, Qt::SquareCap, Qt::MiterJoin));
 }
 
 QPainterPath linkGlyph() {
@@ -64,6 +75,36 @@ QPainterPath linkGlyph() {
                 {4.65, 14.55}, {6.45, 14.55}, {9.35, 16.0}});
     path.closeSubpath();
     return path;
+}
+
+void drawGrabHand(QPainter &painter, bool gripping, const Palette &palette) {
+    QPainterPath shape, creases;
+    if (gripping) {
+        line(shape, {{5.1, 10.15}, {5.5, 8.45}, {6.9, 7.45}, {8.55, 7.8}, {9.8, 8.9},
+                     {9.2, 7.05}, {10.4, 6.15}, {12.1, 6.65}, {13.35, 8.6},
+                     {13.3, 7.6}, {14.65, 7.4}, {16.15, 8.5}, {17.1, 10.25},
+                     {17.55, 9.35}, {19, 9.8}, {20.55, 11.4}, {21.15, 14.8},
+                     {20.35, 17.85}, {17.65, 21.05}, {11.9, 21.05}, {7.25, 19.3},
+                     {4.75, 16.8}, {3.55, 14.25}, {4.2, 12.25}, {5.9, 11.65}, {8.45, 12.45}});
+        line(creases, {{9.8, 8.9}, {10.55, 10.4}, {10.3, 12.0}});
+        line(creases, {{13.35, 8.6}, {14.15, 10.55}, {14, 12.7}});
+        line(creases, {{17.1, 10.25}, {17.85, 11.9}, {17.55, 13.55}});
+        // The thumb folds across the curled fingers.
+        line(creases, {{8.45, 12.45}, {10.9, 14.65}, {13.25, 14.8}, {14.45, 14.15}});
+    } else {
+        line(shape, {{4.55, 6.55}, {5.7, 5.5}, {7.15, 5.6}, {10.15, 10.25},
+                     {7.4, 4.4}, {8.1, 3.25}, {9.65, 2.85}, {10.7, 3.7}, {13.05, 9.4},
+                     {11.55, 5}, {12.6, 4.35}, {14.05, 4.65}, {16.05, 10.65},
+                     {15.55, 7.45}, {16.9, 7.05}, {18.3, 7.75}, {20.45, 12.2},
+                     {21, 15.6}, {20, 18.6}, {17.4, 21}, {11.65, 21}, {7.25, 18.95},
+                     {3.7, 15.65}, {3.25, 14.1}, {4.4, 12.9}, {6.25, 13.45},
+                     {8.95, 15.4}, {7.7, 12.4}});
+        line(creases, {{10.15, 10.25}, {10.85, 11.4}, {11.35, 12.85}});
+        line(creases, {{13.05, 9.4}, {13.85, 10.8}, {14.45, 12.65}});
+        line(creases, {{16.05, 10.65}, {16.85, 11.9}, {17.35, 13.3}});
+    }
+    shape.closeSubpath();
+    drawHand(painter, shape, creases, palette);
 }
 
 QPainterPath resizeGlyph(const Kind &direction) {
@@ -118,7 +159,7 @@ QPoint logicalHotspot(const Kind &kind) {
     return {12, 12};
 }
 
-QImage render(const Kind &kind, int size, int frame, int padding) {
+QImage render(const Kind &kind, int size, int frame, int padding, const Palette &palette) {
     const int extent = size + 2 * padding;
     QImage image(extent, extent, QImage::Format_ARGB32_Premultiplied);
     image.fill(Qt::transparent);
@@ -132,32 +173,27 @@ QImage render(const Kind &kind, int size, int frame, int padding) {
         // Rasterize the original silhouette at this frame's actual size.
         // Smooth its edge coverage without resampling a smaller cursor.
         painter.setRenderHint(QPainter::Antialiasing);
-        drawArrow(painter);
+        drawArrow(painter, palette);
         painter.end();
         return image;
-    } else if (kind == "hand2" || kind.endsWith("-resize")) {
-        const bool link = kind == "hand2";
+    } else if (kind == "hand2") {
+        // Short creases make the bent fingers readable at the native size.
+        QPainterPath creases;
+        line(creases, {{11.65, 8.8}, {12.55, 9.7}, {13.15, 11.65}});
+        line(creases, {{15.3, 9.6}, {16.0, 10.45}, {16.45, 12.35}});
+        line(creases, {{18.9, 10.65}, {19.45, 11.5}, {19.65, 13.1}});
+        drawHand(painter, linkGlyph(), creases, palette);
+        painter.end();
+        return image;
+    } else if (kind.endsWith("-resize")) {
         painter.setRenderHint(QPainter::Antialiasing);
-        drawOutlinedShape(painter, link ? linkGlyph() : resizeGlyph(kind.chopped(7)),
-                          link ? 3.2 : 2.2, link ? Qt::MiterJoin : Qt::RoundJoin);
-        if (link) {
-            // Short creases make the bent fingers readable at the native size.
-            QPainterPath creases;
-            line(creases, {{11.65, 8.8}, {12.55, 9.7}, {13.15, 11.65}});
-            line(creases, {{15.3, 9.6}, {16.0, 10.45}, {16.45, 12.35}});
-            line(creases, {{18.9, 10.65}, {19.45, 11.5}, {19.65, 13.1}});
-            painter.strokePath(creases, QPen(Paper, .9, Qt::SolidLine, Qt::SquareCap, Qt::MiterJoin));
-        }
+        drawOutlinedShape(painter, resizeGlyph(kind.chopped(7)), palette, 2.2, Qt::RoundJoin);
         painter.end();
         return image;
     } else if (kind == "grab" || kind == "grabbing") {
-        const int top = kind == "grab" ? 5 : 8;
-        line(path, {{5, 11}, {7, 11}, {7, qreal(top)}, {9, qreal(top)},
-                    {9, 9}, {11, 9}, {11, qreal(top - 1)}, {13, qreal(top - 1)},
-                    {13, 9}, {15, 9}, {15, qreal(top)}, {17, qreal(top)},
-                    {17, 10}, {20, 10}, {20, 16}, {17, 21}, {10, 21}, {5, 15}, {5, 11}});
-        path.closeSubpath();
-        drawGlyph(painter, path, true);
+        drawGrabHand(painter, kind == "grabbing", palette);
+        painter.end();
+        return image;
     } else if (kind == "xterm" || kind == "vertical-text") {
         line(path, {{8, 4}, {16, 4}});
         line(path, {{12, 4}, {12, 20}});
@@ -168,7 +204,7 @@ QImage render(const Kind &kind, int size, int frame, int padding) {
             transform.rotate(90);
             path = transform.map(path);
         }
-        drawGlyph(painter, path);
+        drawGlyph(painter, path, palette);
     } else if (kind == "crosshair" || kind == "cell" || kind == "move") {
         line(path, {{12, 4}, {12, 20}});
         line(path, {{4, 12}, {20, 12}});
@@ -179,23 +215,23 @@ QImage render(const Kind &kind, int size, int frame, int padding) {
             line(path, {{7, 9}, {4, 12}, {7, 15}});
             line(path, {{17, 9}, {20, 12}, {17, 15}});
         }
-        drawGlyph(painter, path);
+        drawGlyph(painter, path, palette);
     } else if (kind == "watch" || kind == "progress") {
         if (kind == "progress") {
             painter.save();
             painter.scale(.66, .66);
-            drawArrow(painter);
+            drawArrow(painter, palette);
             painter.restore();
             painter.translate(12, 12);
             painter.scale(.45, .45);
         }
         path.addRect(QRectF(4, 5, 16, 14));
-        drawGlyph(painter, path, true);
+        drawGlyph(painter, path, palette, true);
         QPainterPath prompt;
         line(prompt, {{7, 9}, {10, 12}, {7, 15}});
-        painter.setPen(QPen(Paper, 1.5, Qt::SolidLine, Qt::SquareCap, Qt::MiterJoin));
+        painter.setPen(QPen(palette.outline, 1.5, Qt::SolidLine, Qt::SquareCap, Qt::MiterJoin));
         painter.drawPath(prompt);
-        painter.fillRect(QRectF(11 + 2 * frame, 14, 2, 2), Paper);
+        painter.fillRect(QRectF(11 + 2 * frame, 14, 2, 2), palette.outline);
     } else if (kind == "not-allowed" || kind == "zoom-in" || kind == "zoom-out") {
         if (kind == "not-allowed") {
             path.addRect(QRectF(5, 5, 14, 14));
@@ -206,14 +242,14 @@ QImage render(const Kind &kind, int size, int frame, int padding) {
             line(path, {{7, 9.5}, {12, 9.5}});
             if (kind == "zoom-in") line(path, {{9.5, 7}, {9.5, 12}});
         }
-        drawGlyph(painter, path);
+        drawGlyph(painter, path, palette);
     } else {
         painter.save();
         painter.scale(.75, .75);
-        drawArrow(painter);
+        drawArrow(painter, palette);
         painter.restore();
         path.addRect(QRectF(13, 13, 8, 8));
-        drawGlyph(painter, path, true);
+        drawGlyph(painter, path, palette, true);
         QPainterPath badge;
         if (kind == "copy") {
             line(badge, {{15, 17}, {19, 17}});
@@ -228,7 +264,7 @@ QImage render(const Kind &kind, int size, int frame, int padding) {
             line(badge, {{15, 16}, {19, 16}});
             line(badge, {{15, 18}, {19, 18}});
         }
-        painter.setPen(QPen(Paper, 1));
+        painter.setPen(QPen(palette.outline, 1));
         painter.drawPath(badge);
     }
     painter.end();
@@ -245,7 +281,7 @@ QImage render(const Kind &kind, int size, int frame, int padding) {
     return image;
 }
 
-bool writeCursor(const QString &filename, const Kind &kind) {
+bool writeCursor(const QString &filename, const Kind &kind, const Palette &palette) {
     // Rasterize each resolution directly from the artwork. Keep a matching
     // bitmap for 1x, 2x, 3x and 4x output scales.
     constexpr int sizes[]{24, 48, 72, 96};
@@ -270,7 +306,7 @@ bool writeCursor(const QString &filename, const Kind &kind) {
             image->xhot = padding + qRound(hotspot.x() * artScale * size / BaseSize);
             image->yhot = padding + qRound(hotspot.y() * artScale * size / BaseSize);
             image->delay = frames > 1 ? 120 : 0;
-            const QImage pixels = render(kind, size, frame, padding);
+            const QImage pixels = render(kind, size, frame, padding, palette);
             std::memcpy(image->pixels, pixels.constBits(), pixels.sizeInBytes());
             images->images[images->nimage++] = image;
         }
@@ -281,17 +317,19 @@ bool writeCursor(const QString &filename, const Kind &kind) {
 }
 } // namespace
 
-bool createOmarchyCursorPack(const QString &directory, QString *error) {
+bool createOmarchyCursorPack(const QString &directory, bool light, QString *error) {
     if (directory.isEmpty()) { *error = "Missing cursor pack output directory"; return false; }
     const QString cursors = directory + "/cursors";
     if (!QDir().mkpath(cursors)) { *error = "Cannot create " + cursors; return false; }
     QFile index(directory + "/index.theme");
-    const QByteArray metadata = "[Icon Theme]\nName=Omarchy Terminal\n"
+    const QByteArray name = light ? "Omarchy Terminal Light" : "Omarchy Terminal";
+    const QByteArray metadata = "[Icon Theme]\nName=" + name + "\n"
         "Comment=Original monochrome terminal-style cursor pack by Cursora\nX-Cursora-DefaultSize=24\n";
     if (!index.open(QIODevice::WriteOnly) || index.write(metadata) != metadata.size()) {
         *error = "Cannot write " + index.fileName(); return false;
     }
     index.close();
+    const Palette palette = light ? Palette{Paper, Ink} : Palette{Ink, Paper};
     const QList<Kind> shapes{
         "left_ptr", "hand2", "grab", "grabbing", "xterm", "vertical-text", "crosshair", "cell",
         "move", "watch", "progress", "not-allowed", "zoom-in", "zoom-out", "e-resize", "se-resize",
@@ -300,7 +338,7 @@ bool createOmarchyCursorPack(const QString &directory, QString *error) {
     };
     for (const auto &shape : shapes) {
         const QString path = cursors + "/" + QString::fromLatin1(shape);
-        if (!writeCursor(path, shape)) { *error = "Cannot write " + path; return false; }
+        if (!writeCursor(path, shape, palette)) { *error = "Cannot write " + path; return false; }
     }
     const QMap<Kind, Kind> aliases{
         {"default", "left_ptr"}, {"arrow", "left_ptr"}, {"top_left_arrow", "left_ptr"},

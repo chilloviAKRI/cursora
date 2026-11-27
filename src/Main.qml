@@ -25,7 +25,9 @@ ApplicationWindow {
 
     function titleFor(id) { return (translator.language, backend.themeTitle(id)); }
     function descriptionFor(id) { return (translator.language, backend.themeDescription(id)); }
-    function isTerminalPack(id) { return id === "Cursora-Omarchy-Terminal"; }
+    function isTerminalPack(id) {
+        return id === "Cursora-Omarchy-Terminal" || id === "Cursora-Omarchy-Terminal-Light";
+    }
     function applySelection() {
         if (busy || themeList.count === 0) return;
         busy = true;

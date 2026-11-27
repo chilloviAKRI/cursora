@@ -9,4 +9,4 @@ public:
 };
 bool monochromeThemes(const QString &directory, QString *error);
 int nativeCursorSize(const QString &path, int preferred = 24);
-bool createOmarchyCursorPack(const QString &directory, QString *error);
+bool createOmarchyCursorPack(const QString &directory, bool light, QString *error);
