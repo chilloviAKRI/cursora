@@ -19,8 +19,8 @@ constexpr int StraightResizePadding = 4;
 constexpr qreal MainPointerScale = 1.16;
 constexpr qreal BadgePointerScale = .70;
 constexpr QPoint BibataHotspot{5, 1};
-// Align the vector tip after compensating for the enlarged stroke width.
-constexpr QPointF MainPointerArtHotspot{5.25, 1.9};
+// Align the click with the upper-left end of the bevel.
+constexpr QPointF MainPointerArtHotspot{5.5, 4.65};
 // Bibata Original uses a 17 px outline on a 256 px canvas.
 constexpr qreal OutlineThickness = 17.0 * BaseSize / 256;
 constexpr QColor Ink(15, 15, 15);
@@ -42,6 +42,19 @@ QByteArray styledPointer(QByteArray svg, const Palette &palette, qreal scale) {
     svg.replace("#0000FF", palette.outline.name().toLatin1());
     // Keep the outline at its nominal width as the silhouette changes scale.
     svg.replace("stroke-width=\"17\"", "stroke-width=\"" + QByteArray::number(17.0 / scale) + '"');
+    return svg;
+}
+
+QByteArray chamferedPointer(QByteArray svg) {
+    const qsizetype attribute = svg.indexOf(" d=\"");
+    if (attribute < 0) return {};
+    const qsizetype start = attribute + 4;
+    const qsizetype end = svg.indexOf('"', start);
+    if (end < 0) return {};
+
+    // Cut the tip and shoulders on the original 256 px Bibata canvas.
+    svg.replace(start, end - start, "M62.5 52L78.1 47.9L198.2 154.8L197.4 164.7"
+                                    "L122.261 166.392L73 218.2L62.5 216.7Z");
     return svg;
 }
 
@@ -309,7 +322,7 @@ bool createOmarchyCursorPack(const QString &directory, const QString &pointerSou
     }
     const Palette palette = light ? Palette{Paper, Ink} : Palette{Ink, Paper};
     const QByteArray svg = source.readAll();
-    QSvgRenderer mainPointer(styledPointer(svg, palette, MainPointerScale));
+    QSvgRenderer mainPointer(styledPointer(chamferedPointer(svg), palette, MainPointerScale));
     QSvgRenderer badgePointer(styledPointer(svg, palette, BadgePointerScale));
     if (!mainPointer.isValid() || !badgePointer.isValid()) {
         *error = "Invalid Bibata Original SVG: " + pointerSource;

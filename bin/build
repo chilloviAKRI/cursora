@@ -21,8 +21,8 @@ for tone in Black White; do
     cp "$bibata/COPYING" "$terminal/COPYING-Bibata"
     cat > "$terminal/NOTICE" <<'EOF'
 The arrows in left_ptr, progress, copy, alias, help and context-menu are adapted from
-Bibata Original 2.0.7 by ful1e5 and contributors. Cursora adjusts their scale, palette
-and outline weight, and adds terminal-style badges to the alternate arrows.
+Bibata Original 2.0.7 by ful1e5 and contributors. Cursora adjusts the scale, palette
+and outline weight, cuts the main pointer's corners, and adds terminal-style badges.
 These cursors are distributed under GPL-3.0-only. See COPYING-Bibata and https://github.com/ful1e5/Bibata_Cursor.
 The pinned Bibata release and source archives are shipped in /usr/share/cursora/sources.
 The other Omarchy Terminal cursors use the MIT license. See COPYING and omarchycursor.cpp.
