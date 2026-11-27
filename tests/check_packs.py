@@ -74,6 +74,7 @@ for theme, pack in packs.items():
         native = index['Icon Theme'].getint('X-Cursora-DefaultSize')
         light = pack.get('tone') == 'white'
         fill, outline = (0xfff7f7f7, 0xff0f0f0f) if light else (0xff0f0f0f, 0xfff7f7f7)
+        fill_value, outline_value = fill & 255, outline & 255
         dark_cursors = path.with_name('Cursora-Omarchy-Terminal') / 'cursors'
         for cursor in (path / 'cursors').iterdir():
             if cursor.is_symlink():
@@ -102,7 +103,11 @@ for theme, pack in packs.items():
                     alpha = [p >> 24 for p in pixels]
                     assert alpha[yhot * width + xhot] > 0, f'Invisible click tip at {nominal}px'
                     assert any(0 < a < 255 for a in alpha), f'Jagged arrow edge at {nominal}px'
-                    assert pixels.count(fill) >= nominal * nominal // 10, f'Arrow core is too small at {nominal}px'
+                    fill_area = sum((outline_value * a / 255 - (p & 255)) / (outline_value - fill_value)
+                                    for p, a in zip(pixels, alpha))
+                    assert fill_area >= nominal * nominal / 10, f'Arrow core is too small at {nominal}px'
+                    columns = [i % width for i, a in enumerate(alpha) if a >= 128]
+                    assert max(columns) - min(columns) + 1 <= nominal * 2 // 3, f'Arrow is too wide at {nominal}px'
                 elif cursor.name in hand_shapes or cursor.name.endswith('-resize'):
                     assert fill in pixels and outline in pixels, f'Missing fill or outline in {cursor} at {nominal}px'
                     if cursor.name in hand_shapes:
@@ -117,7 +122,6 @@ for theme, pack in packs.items():
                 if nominal == native * 4 and cursor.name in outline_samples:
                     row, start, end = outline_samples[cursor.name]
                     start, end = (row * width + start) * 4, (row * width + end) * 4
-                    fill_value, outline_value = fill & 255, outline & 255
                     # Recover outline coverage from the two colors and premultiplied alpha.
                     border = sum(((p & 255) - fill_value * (p >> 24) / 255) / (outline_value - fill_value)
                                  for p in pixels[start:end])

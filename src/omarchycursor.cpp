@@ -3,6 +3,7 @@
 #include <QDir>
 #include <QFile>
 #include <QImage>
+#include <QLineF>
 #include <QMap>
 #include <QPainter>
 #include <QPainterPath>
@@ -31,18 +32,21 @@ void line(QPainterPath &path, std::initializer_list<QPointF> points) {
     for (; point != points.end(); ++point) path.lineTo(*point);
 }
 
-void drawArrow(QPainter &painter, const Palette &palette, qreal scale = 1) {
-    QPainterPath outline;
-    line(outline, {{2, 2}, {22, 14}, {13, 15}, {17, 21},
-                   {12, 23}, {8, 17}, {2, 21}});
-    outline.closeSubpath();
-    outline = QTransform::fromScale(scale, scale).map(outline);
-    // Inset the fill from the original silhouette to keep the pointer's tip and edges.
+void drawArrow(QPainter &painter, const QPainterPath &outline, const Palette &palette) {
+    // Inset the fill to keep the silhouette and tip in place.
     QPainterPathStroker border;
     border.setWidth(2 * OutlineThickness);
     border.setJoinStyle(Qt::MiterJoin);
     painter.fillPath(outline, palette.outline);
     painter.fillPath(outline.subtracted(border.createStroke(outline)), palette.fill);
+}
+
+void drawBadgeArrow(QPainter &painter, const Palette &palette, qreal scale) {
+    QPainterPath outline;
+    line(outline, {{2, 2}, {22, 14}, {13, 15}, {17, 21},
+                   {12, 23}, {8, 17}, {2, 21}});
+    outline.closeSubpath();
+    drawArrow(painter, QTransform::fromScale(scale, scale).map(outline), palette);
 }
 
 void drawGlyph(QPainter &painter, const QPainterPath &path, const Palette &palette) {
@@ -171,7 +175,16 @@ QImage render(const Kind &kind, int size, int frame, int padding, const Palette 
     painter.scale(scale, scale);
     QPainterPath path;
     if (kind == "left_ptr") {
-        drawArrow(painter, palette);
+        const QPointF tip{2, 2};
+        const QPointF neck{9.9, 16.1};
+        const QPointF axis = QLineF(tip, neck).unitVector().p2() - tip;
+        const QPointF across{axis.y(), -axis.x()};
+        const QPointF end = neck + axis * 5.35;
+        const QPointF shoulder = neck + across * 2.6;
+        line(path, {tip, {17.5, shoulder.y()}, shoulder, end + across * 4.2,
+                    end - across * 4.2, neck - across * 2.6, {2, 21}});
+        path.closeSubpath();
+        drawArrow(painter, path, palette);
     } else if (kind == "hand2") {
         // Short creases make the bent fingers readable at the native size.
         QPainterPath creases;
@@ -208,7 +221,7 @@ QImage render(const Kind &kind, int size, int frame, int padding, const Palette 
     } else if (kind == "watch" || kind == "progress") {
         QTransform badge;
         if (kind == "progress") {
-            drawArrow(painter, palette, .66);
+            drawBadgeArrow(painter, palette, .66);
             badge.translate(12, 12);
             badge.scale(.45, .45);
         }
@@ -232,7 +245,7 @@ QImage render(const Kind &kind, int size, int frame, int padding, const Palette 
         }
         drawGlyph(painter, path, palette);
     } else {
-        drawArrow(painter, palette, .75);
+        drawBadgeArrow(painter, palette, .75);
         path.addRect(QRectF(13, 13, 8, 8));
         drawOutlinedShape(painter, path, palette);
         QPainterPath badge;
